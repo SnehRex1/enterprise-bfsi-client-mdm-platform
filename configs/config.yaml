@@ -1,0 +1,9 @@
+app:
+  name: enterprise-bfsi-client-mdm-platform
+  environment: local
+
+paths:
+  data_dir: data/
+
+logging:
+  level: INFO
