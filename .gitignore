@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+.venv/
+venv/
+
+# Environment variables / secrets
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local data
+data/raw/
+data/bronze/
+data/silver/
+data/gold/
+data/quarantine/
+
+# Temporary files
+*.tmp
+*.log
+
+# VS Code
+.vscode/
