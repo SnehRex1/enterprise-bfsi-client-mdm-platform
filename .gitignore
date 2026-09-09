@@ -33,3 +33,12 @@ data/quarantine/
 .terraform.lock.hcl
 crash.log
 crash.*.log
+
+# External datasets
+data/external/
+
+# Generated source systems
+data/source_systems/
+
+# Generated ground truth
+data/ground_truth/

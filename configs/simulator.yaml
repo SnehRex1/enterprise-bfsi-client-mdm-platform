@@ -1,0 +1,29 @@
+simulation:
+  seed: 42
+
+  individual_count: 900000
+
+  gleif_entity_count: 94422
+
+  gleif_country: GB
+
+
+system_appearance_rates:
+  core: 0.95
+  crm: 0.65
+  kyc: 0.80
+  wealth: 0.20
+
+
+messiness:
+  middle_name_rate: 0.30
+
+  general_missing_rate: 0.04
+
+  crm_missing_dob_rate: 0.08
+
+  wealth_missing_email_rate: 0.15
+
+  conflict_rate: 0.05
+
+  duplicate_rate: 0.02
