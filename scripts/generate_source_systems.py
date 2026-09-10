@@ -5,14 +5,19 @@ Inputs:
     data/external/banking_digital_twin/base_individuals.csv
     data/external/gleif/gleif_entities.csv
 
-Outputs:
+Outputs for the full profile:
     data/source_systems/core/core_customers.csv
     data/source_systems/crm/crm_customers.csv
     data/source_systems/kyc/kyc_customers.csv
     data/source_systems/wealth/wealth_customers.csv
-
-Ground truth:
     data/ground_truth/ground_truth.csv
+
+Outputs for the dev profile:
+    data/dev/source_systems/core/core_customers.csv
+    data/dev/source_systems/crm/crm_customers.csv
+    data/dev/source_systems/kyc/kyc_customers.csv
+    data/dev/source_systems/wealth/wealth_customers.csv
+    data/dev/ground_truth/ground_truth.csv
 
 IMPORTANT:
     entity_key exists only inside the simulator and ground truth.
@@ -72,19 +77,51 @@ GLEIF_PATH = Path(
 # OUTPUTS
 # ============================================================
 
-SOURCE_DIR = Path(
-    "data/source_systems"
-)
+def get_output_paths(profile: str):
+    """
+    Resolve output locations for the selected benchmark profile.
 
-GROUND_TRUTH_PATH = Path(
-    "data/ground_truth/"
-    "ground_truth.csv"
-)
+    Full benchmark:
+        data/source_systems/
+        data/ground_truth/
 
-METADATA_PATH = Path(
-    "data/ground_truth/"
-    "simulator_run_metadata.json"
-)
+    Dev benchmark:
+        data/dev/source_systems/
+        data/dev/ground_truth/
+    """
+
+    if profile == "full":
+        output_root = Path("data")
+    elif profile == "dev":
+        output_root = Path("data/dev")
+    else:
+        raise ValueError(
+            f"Unknown benchmark profile: {profile}"
+        )
+
+    source_dir = (
+        output_root / "source_systems"
+    )
+
+    ground_truth_dir = (
+        output_root / "ground_truth"
+    )
+
+    ground_truth_path = (
+        ground_truth_dir / "ground_truth.csv"
+    )
+
+    metadata_path = (
+        ground_truth_dir
+        / "simulator_run_metadata.json"
+    )
+
+    return (
+        source_dir,
+        ground_truth_dir,
+        ground_truth_path,
+        metadata_path,
+    )
 
 
 # ============================================================
@@ -1315,7 +1352,9 @@ def emit_entity(
 # OUTPUT WRITERS
 # ============================================================
 
-def open_source_writers():
+def open_source_writers(
+    source_dir: Path,
+):
 
     handles = {}
     writers = {}
@@ -1325,7 +1364,7 @@ def open_source_writers():
     ):
 
         output_path = (
-            SOURCE_DIR
+            source_dir
             / config["filename"]
         )
 
@@ -1533,14 +1572,31 @@ def stream_legal_entities(
 
 def parse_args():
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description=(
+            "Generate the Phase 1 BFSI MDM "
+            "source-system benchmark."
+        )
+    )
+
+    parser.add_argument(
+        "--profile",
+        choices=["dev", "full"],
+        default="full",
+        help=(
+            "Benchmark profile. "
+            "dev = 20K individuals + 2K GLEIF. "
+            "full = official Phase 1 benchmark."
+        ),
+    )
 
     parser.add_argument(
         "--individual-limit",
         type=int,
         default=None,
         help=(
-            "Optional limit for smoke testing."
+            "Optional override for the individual "
+            "population. Useful for tiny smoke tests."
         ),
     )
 
@@ -1549,7 +1605,8 @@ def parse_args():
         type=int,
         default=None,
         help=(
-            "Optional limit for smoke testing."
+            "Optional override for the GLEIF "
+            "population. Useful for tiny smoke tests."
         ),
     )
 
@@ -1559,6 +1616,37 @@ def parse_args():
 def main():
 
     args = parse_args()
+
+    profile = args.profile
+
+    (
+        source_dir,
+        ground_truth_dir,
+        ground_truth_path,
+        metadata_path,
+    ) = get_output_paths(
+        profile
+    )
+
+    benchmark_config = CONFIG[
+        "benchmarks"
+    ][profile]
+
+    individual_limit = (
+        args.individual_limit
+        if args.individual_limit is not None
+        else benchmark_config[
+            "individual_count"
+        ]
+    )
+
+    gleif_limit = (
+        args.gleif_limit
+        if args.gleif_limit is not None
+        else benchmark_config[
+            "gleif_entity_count"
+        ]
+    )
 
     if not INDIVIDUALS_PATH.exists():
         raise FileNotFoundError(
@@ -1572,22 +1660,55 @@ def main():
             f"{GLEIF_PATH}"
         )
 
-    SOURCE_DIR.mkdir(
+    source_dir.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    GROUND_TRUTH_PATH.parent.mkdir(
+    ground_truth_dir.mkdir(
         parents=True,
         exist_ok=True,
+    )
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        "SOURCE SIMULATION"
+    )
+
+    print(
+        "=" * 70
+    )
+
+    print(
+        f"Profile: {profile}"
+    )
+
+    print(
+        f"Individuals: "
+        f"{individual_limit:,}"
+    )
+
+    print(
+        f"GLEIF entities: "
+        f"{gleif_limit:,}"
+    )
+
+    print(
+        f"Output root: "
+        f"{source_dir.parent}"
     )
 
     handles, writers = (
-        open_source_writers()
+        open_source_writers(
+            source_dir
+        )
     )
 
     ground_truth_handle = (
-        GROUND_TRUTH_PATH.open(
+        ground_truth_path.open(
             "w",
             newline="",
             encoding="utf-8",
@@ -1621,9 +1742,7 @@ def main():
                 ground_truth_writer=(
                     ground_truth_writer
                 ),
-                maximum=(
-                    args.individual_limit
-                ),
+                maximum=individual_limit,
                 starting_sequence=0,
             )
         )
@@ -1635,9 +1754,7 @@ def main():
                 ground_truth_writer=(
                     ground_truth_writer
                 ),
-                maximum=(
-                    args.gleif_limit
-                ),
+                maximum=gleif_limit,
                 starting_sequence=sequence,
             )
         )
@@ -1656,6 +1773,8 @@ def main():
     # ========================================================
 
     metadata = {
+        "profile": profile,
+
         "seed": SEED,
 
         "individuals_processed":
@@ -1703,7 +1822,7 @@ def main():
         ],
     }
 
-    METADATA_PATH.write_text(
+    metadata_path.write_text(
         json.dumps(
             metadata,
             indent=2,
@@ -1763,7 +1882,7 @@ def main():
     )
 
     print(
-        f"  {METADATA_PATH}"
+        f"  {metadata_path}"
     )
 
 

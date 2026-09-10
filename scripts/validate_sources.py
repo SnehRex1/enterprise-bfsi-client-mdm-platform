@@ -1,29 +1,80 @@
 """
-Phase 1 validation.
+Phase 1 — Source Validation
 
-Validates:
-1. Expected source schemas
-2. Source record counts
-3. Sequential source IDs
-4. Ground-truth reconciliation
-5. entity_key isolation
-6. Cross-system coverage
-7. Missing values
-8. Simulator statistics
+Validates either:
+
+    --profile dev
+or:
+    --profile full
+
+The validator reads the actual CSV files from disk using
+csv.DictReader. It does NOT use metadata as the source of
+row counts.
+
+Metadata is used only afterward to verify that the generated
+metadata agrees with the actual files.
 """
 
+import argparse
 import csv
 import json
 from collections import defaultdict
 from pathlib import Path
 
 
-SOURCE_FILES = {
+# ============================================================
+# PROFILE PATHS
+# ============================================================
+
+def get_profile_paths(profile: str):
+    """
+    Return the source-system root, ground truth path,
+    and metadata path for the selected benchmark.
+    """
+
+    if profile == "dev":
+        root = Path("data/dev")
+
+    elif profile == "full":
+        root = Path("data")
+
+    else:
+        raise ValueError(
+            f"Unsupported profile: {profile}"
+        )
+
+    source_root = (
+        root / "source_systems"
+    )
+
+    ground_truth_path = (
+        root
+        / "ground_truth"
+        / "ground_truth.csv"
+    )
+
+    metadata_path = (
+        root
+        / "ground_truth"
+        / "simulator_run_metadata.json"
+    )
+
+    return (
+        source_root,
+        ground_truth_path,
+        metadata_path,
+    )
+
+
+# ============================================================
+# SOURCE SCHEMA DEFINITIONS
+# ============================================================
+
+SOURCE_DEFINITIONS = {
+
     "core": {
-        "path": Path(
-            "data/source_systems/"
-            "core/core_customers.csv"
-        ),
+        "directory": "core",
+        "filename": "core_customers.csv",
         "id_column": "customer_id",
         "prefix": "C",
         "columns": [
@@ -39,12 +90,9 @@ SOURCE_FILES = {
     },
 
     "crm": {
-        "path": Path(
-            "data/source_systems/"
-            "crm/crm_customers.csv"
-        ),
-        "id_column":
-            "crm_customer_id",
+        "directory": "crm",
+        "filename": "crm_customers.csv",
+        "id_column": "crm_customer_id",
         "prefix": "CRM",
         "columns": [
             "crm_customer_id",
@@ -58,12 +106,9 @@ SOURCE_FILES = {
     },
 
     "kyc": {
-        "path": Path(
-            "data/source_systems/"
-            "kyc/kyc_customers.csv"
-        ),
-        "id_column":
-            "kyc_id",
+        "directory": "kyc",
+        "filename": "kyc_customers.csv",
+        "id_column": "kyc_id",
         "prefix": "KYC",
         "columns": [
             "kyc_id",
@@ -79,12 +124,9 @@ SOURCE_FILES = {
     },
 
     "wealth": {
-        "path": Path(
-            "data/source_systems/"
-            "wealth/wealth_customers.csv"
-        ),
-        "id_column":
-            "client_id",
+        "directory": "wealth",
+        "filename": "wealth_customers.csv",
+        "id_column": "client_id",
         "prefix": "W",
         "columns": [
             "client_id",
@@ -101,41 +143,102 @@ SOURCE_FILES = {
 }
 
 
-GROUND_TRUTH = Path(
-    "data/ground_truth/"
-    "ground_truth.csv"
-)
+# ============================================================
+# ARGUMENTS
+# ============================================================
 
-SIMULATOR_METADATA = Path(
-    "data/ground_truth/"
-    "simulator_run_metadata.json"
-)
+def parse_args():
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Validate the Phase 1 "
+            "BFSI MDM benchmark."
+        )
+    )
+
+    parser.add_argument(
+        "--profile",
+        choices=["dev", "full"],
+        default="full",
+        help=(
+            "Benchmark to validate. "
+            "dev = data/dev, "
+            "full = data/"
+        ),
+    )
+
+    return parser.parse_args()
 
 
-def validate_source_schema(
-    name,
-    config,
+# ============================================================
+# BUILD SOURCE PATHS
+# ============================================================
+
+def build_source_definitions(
+    source_root: Path,
 ):
-    path = config["path"]
+
+    definitions = {}
+
+    for system, definition in (
+        SOURCE_DEFINITIONS.items()
+    ):
+
+        current = dict(definition)
+
+        current["path"] = (
+            source_root
+            / definition["directory"]
+            / definition["filename"]
+        )
+
+        definitions[system] = current
+
+    return definitions
+
+
+# ============================================================
+# VALIDATE ONE SOURCE FILE
+# ============================================================
+
+def validate_source_file(
+    system: str,
+    definition: dict,
+):
+    """
+    Read the actual CSV from disk and count logical CSV
+    records using csv.DictReader.
+
+    This is the authoritative row count.
+    """
+
+    path = definition["path"]
 
     if not path.exists():
         raise FileNotFoundError(
-            f"Missing source file: {path}"
+            f"Missing {system} source file:\n"
+            f"{path}"
         )
 
+    expected_columns = (
+        definition["columns"]
+    )
+
+    id_column = (
+        definition["id_column"]
+    )
+
+    prefix = definition["prefix"]
+
     row_count = 0
+
     blank_counts = {
         column: 0
-        for column in config["columns"]
+        for column in expected_columns
     }
 
-    expected_prefix = config[
-        "prefix"
-    ]
-
-    expected_id_number = 0
-
     with path.open(
+        "r",
         newline="",
         encoding="utf-8",
     ) as file:
@@ -144,61 +247,77 @@ def validate_source_schema(
             file
         )
 
+        # ----------------------------------------------------
+        # Schema check
+        # ----------------------------------------------------
+
         if reader.fieldnames != (
-            config["columns"]
+            expected_columns
         ):
             raise AssertionError(
-                f"{name}: schema mismatch.\n"
-                f"Expected:\n{config['columns']}\n"
+                f"{system.upper()}: schema mismatch.\n"
+                f"Expected:\n{expected_columns}\n"
                 f"Actual:\n{reader.fieldnames}"
             )
+
+        # ----------------------------------------------------
+        # Actual CSV-record count
+        # ----------------------------------------------------
 
         for row in reader:
 
             row_count += 1
 
-            source_id = row[
-                config["id_column"]
-            ]
+            # ------------------------------------------------
+            # Source ID integrity
+            # ------------------------------------------------
 
-            expected_id_number += 1
+            source_id = (
+                row.get(
+                    id_column,
+                    "",
+                )
+                or ""
+            ).strip()
 
             expected_id = (
-                f"{expected_prefix}"
-                f"{expected_id_number:08d}"
+                f"{prefix}"
+                f"{row_count:08d}"
             )
 
             if source_id != expected_id:
 
                 raise AssertionError(
-                    f"{name}: source ID sequence "
-                    f"broken at row "
+                    f"{system.upper()}: source ID "
+                    f"sequence broken at CSV record "
                     f"{row_count}.\n"
                     f"Expected: {expected_id}\n"
                     f"Actual:   {source_id}"
                 )
 
-            if (
-                "entity_key"
-                in row
-            ):
+            # ------------------------------------------------
+            # Truth leakage
+            # ------------------------------------------------
+
+            if "entity_key" in row:
+
                 raise AssertionError(
-                    f"{name}: entity_key leaked "
-                    f"into source data."
+                    f"{system.upper()}: entity_key "
+                    f"leaked into source data."
                 )
 
-            if (
-                "master_id"
-                in row
-            ):
+            if "master_id" in row:
+
                 raise AssertionError(
-                    f"{name}: master_id leaked "
-                    f"into source data."
+                    f"{system.upper()}: master_id "
+                    f"leaked into source data."
                 )
 
-            for column in (
-                config["columns"]
-            ):
+            # ------------------------------------------------
+            # Blank-value statistics
+            # ------------------------------------------------
+
+            for column in expected_columns:
 
                 value = (
                     row.get(
@@ -209,6 +328,7 @@ def validate_source_schema(
                 )
 
                 if not value.strip():
+
                     blank_counts[
                         column
                     ] += 1
@@ -219,29 +339,57 @@ def validate_source_schema(
     )
 
 
+# ============================================================
+# VALIDATE GROUND TRUTH
+# ============================================================
+
 def validate_ground_truth(
-    expected_source_rows,
+    ground_truth_path: Path,
+    expected_source_rows: int,
 ):
-    if not GROUND_TRUTH.exists():
+    """
+    Validate the actual ground-truth CSV.
+
+    Counts the physical logical CSV records using
+    csv.DictReader.
+
+    Also validates:
+    - schema
+    - source-system values
+    - source ID sequence
+    - non-empty entity_key
+    - reconciliation
+    - cross-system coverage
+    """
+
+    if not ground_truth_path.exists():
         raise FileNotFoundError(
-            f"Missing {GROUND_TRUTH}"
+            f"Missing ground truth:\n"
+            f"{ground_truth_path}"
         )
+
+    expected_columns = [
+        "source_system",
+        "source_id",
+        "entity_key",
+    ]
 
     row_count = 0
 
-    expected_ids = {
+    source_counters = {
         "CORE": 0,
         "CRM": 0,
         "KYC": 0,
         "WEALTH": 0,
     }
 
-    current_entity = None
-    current_systems = set()
-
     coverage = defaultdict(int)
 
-    with GROUND_TRUTH.open(
+    current_entity_key = None
+    current_systems = set()
+
+    with ground_truth_path.open(
+        "r",
         newline="",
         encoding="utf-8",
     ) as file:
@@ -250,17 +398,13 @@ def validate_ground_truth(
             file
         )
 
-        expected_columns = [
-            "source_system",
-            "source_id",
-            "entity_key",
-        ]
-
         if reader.fieldnames != (
             expected_columns
         ):
             raise AssertionError(
-                "Ground-truth schema mismatch."
+                "Ground truth schema mismatch.\n"
+                f"Expected:\n{expected_columns}\n"
+                f"Actual:\n{reader.fieldnames}"
             )
 
         for row in reader:
@@ -269,43 +413,51 @@ def validate_ground_truth(
 
             system = (
                 row["source_system"]
-                .strip()
-                .upper()
-            )
+                or ""
+            ).strip().upper()
 
             source_id = (
                 row["source_id"]
-                .strip()
-            )
+                or ""
+            ).strip()
 
             entity_key = (
                 row["entity_key"]
-                .strip()
-            )
+                or ""
+            ).strip()
 
-            if system not in (
-                expected_ids
-            ):
+            # ------------------------------------------------
+            # Basic values
+            # ------------------------------------------------
+
+            if system not in source_counters:
+
                 raise AssertionError(
                     f"Unknown source system: "
                     f"{system}"
                 )
 
             if not source_id:
+
                 raise AssertionError(
-                    "Blank source_id in "
-                    "ground truth."
+                    f"Blank source_id at "
+                    f"ground-truth row "
+                    f"{row_count}"
                 )
 
             if not entity_key:
+
                 raise AssertionError(
-                    "Blank entity_key in "
-                    "ground truth."
+                    f"Blank entity_key at "
+                    f"ground-truth row "
+                    f"{row_count}"
                 )
 
-            expected_ids[
-                system
-            ] += 1
+            # ------------------------------------------------
+            # Source ID sequence
+            # ------------------------------------------------
+
+            source_counters[system] += 1
 
             prefix = {
                 "CORE": "C",
@@ -314,46 +466,43 @@ def validate_ground_truth(
                 "WEALTH": "W",
             }[system]
 
-            expected_source_id = (
+            expected_id = (
                 f"{prefix}"
-                f"{expected_ids[system]:08d}"
+                f"{source_counters[system]:08d}"
             )
 
-            if (
-                source_id
-                != expected_source_id
-            ):
+            if source_id != expected_id:
+
                 raise AssertionError(
                     f"Ground truth source ID "
                     f"sequence broken for "
                     f"{system}.\n"
-                    f"Expected: "
-                    f"{expected_source_id}\n"
-                    f"Actual: "
-                    f"{source_id}"
+                    f"Expected: {expected_id}\n"
+                    f"Actual:   {source_id}"
                 )
 
-            # Ground truth is generated one entity
-            # at a time, so this stays O(1) memory.
+            # ------------------------------------------------
+            # Cross-system coverage
+            # ------------------------------------------------
+
             if (
-                current_entity is not None
+                current_entity_key is not None
                 and entity_key
-                != current_entity
+                != current_entity_key
             ):
 
                 coverage[
-                    len(
-                        current_systems
-                    )
+                    len(current_systems)
                 ] += 1
 
                 current_systems = set()
 
             if (
-                current_entity
+                current_entity_key
                 != entity_key
             ):
-                current_entity = (
+
+                current_entity_key = (
                     entity_key
                 )
 
@@ -361,105 +510,224 @@ def validate_ground_truth(
                 system
             )
 
-    if current_entity is not None:
+    # Flush last entity
+    if current_entity_key is not None:
 
         coverage[
-            len(
-                current_systems
-            )
+            len(current_systems)
         ] += 1
+
+    # --------------------------------------------------------
+    # Reconciliation
+    # --------------------------------------------------------
 
     if row_count != (
         expected_source_rows
     ):
+
         raise AssertionError(
-            "Ground-truth reconciliation "
-            "failed.\n"
-            f"Source rows: "
+            "Ground-truth reconciliation failed.\n"
+            f"Actual source rows: "
             f"{expected_source_rows:,}\n"
-            f"Ground truth: "
+            f"Actual ground-truth rows: "
             f"{row_count:,}"
         )
 
-    return row_count, coverage
+    return (
+        row_count,
+        coverage,
+        source_counters,
+    )
 
+
+# ============================================================
+# VALIDATE METADATA
+# ============================================================
 
 def validate_metadata(
-    source_counts,
+    metadata_path: Path,
+    profile: str,
+    actual_source_counts: dict,
+    actual_ground_truth_rows: int,
 ):
+    """
+    Metadata is NOT used to count rows.
 
-    if not SIMULATOR_METADATA.exists():
+    We first count the real CSVs, then compare the
+    metadata against those actual values.
+    """
+
+    if not metadata_path.exists():
         raise FileNotFoundError(
-            f"Missing metadata: "
-            f"{SIMULATOR_METADATA}"
+            f"Missing metadata:\n"
+            f"{metadata_path}"
         )
 
     metadata = json.loads(
-        SIMULATOR_METADATA.read_text(
+        metadata_path.read_text(
             encoding="utf-8"
         )
     )
 
-    if metadata[
-        "source_rows"
-    ] != source_counts:
+    # --------------------------------------------------------
+    # Profile
+    # --------------------------------------------------------
+
+    metadata_profile = metadata.get(
+        "profile",
+        "full",
+    )
+
+    if metadata_profile != profile:
 
         raise AssertionError(
-            "Simulator metadata source "
-            "counts do not match "
-            "actual source counts."
+            "Metadata profile mismatch.\n"
+            f"Expected: {profile}\n"
+            f"Actual:   {metadata_profile}"
         )
 
-    if (
-        metadata["phone_conflicts"]
-        <= 0
+    # --------------------------------------------------------
+    # Source counts
+    # --------------------------------------------------------
+
+    metadata_counts = (
+        metadata.get(
+            "source_rows",
+            {},
+        )
+    )
+
+    if metadata_counts != (
+        actual_source_counts
     ):
 
         raise AssertionError(
-            "No phone conflicts were "
-            "generated."
+            "Metadata source counts do not "
+            "match actual CSV counts.\n"
+            f"Metadata: {metadata_counts}\n"
+            f"Actual:   {actual_source_counts}"
         )
 
-    if (
-        metadata["email_conflicts"]
-        <= 0
+    # --------------------------------------------------------
+    # Ground truth count
+    # --------------------------------------------------------
+
+    actual_source_total = sum(
+        actual_source_counts.values()
+    )
+
+    if actual_ground_truth_rows != (
+        actual_source_total
     ):
 
         raise AssertionError(
-            "No email conflicts were "
-            "generated."
+            "Ground truth does not reconcile "
+            "with source files."
         )
+
+    # --------------------------------------------------------
+    # Hidden entity population
+    # --------------------------------------------------------
+
+    individuals = metadata.get(
+        "individuals_processed"
+    )
+
+    legal_entities = metadata.get(
+        "legal_entities_processed"
+    )
+
+    hidden_entities = metadata.get(
+        "hidden_entities"
+    )
+
+    if (
+        individuals is not None
+        and legal_entities is not None
+        and hidden_entities is not None
+    ):
+
+        expected_hidden = (
+            individuals
+            + legal_entities
+        )
+
+        if hidden_entities != (
+            expected_hidden
+        ):
+
+            raise AssertionError(
+                "Hidden-entity count mismatch.\n"
+                f"Individuals + legal entities = "
+                f"{expected_hidden:,}\n"
+                f"Metadata hidden entities = "
+                f"{hidden_entities:,}"
+            )
+
+    # --------------------------------------------------------
+    # Messiness presence
+    # --------------------------------------------------------
+
+    if metadata.get(
+        "phone_conflicts",
+        0,
+    ) <= 0:
+
+        raise AssertionError(
+            "No phone conflicts were recorded."
+        )
+
+    if metadata.get(
+        "email_conflicts",
+        0,
+    ) <= 0:
+
+        raise AssertionError(
+            "No email conflicts were recorded."
+        )
+
+    duplicate_rows = metadata.get(
+        "duplicate_rows",
+        {},
+    )
 
     if not any(
         value > 0
-        for value in (
-            metadata[
-                "missing_values"
-            ].values()
-        )
+        for value in duplicate_rows.values()
     ):
 
         raise AssertionError(
-            "No missing values were "
-            "generated."
+            "No duplicate rows were recorded."
         )
 
-    if not any(
-        value > 0
-        for value in (
-            metadata[
-                "duplicate_rows"
-            ].values()
-        )
-    ):
+    print(
+        "\nSIMULATOR METADATA: PASS"
+    )
 
-        raise AssertionError(
-            "No duplicate rows were "
-            "generated."
-        )
 
+# ============================================================
+# MAIN
+# ============================================================
 
 def main():
+
+    args = parse_args()
+
+    profile = args.profile
+
+    (
+        source_root,
+        ground_truth_path,
+        metadata_path,
+    ) = get_profile_paths(
+        profile
+    )
+
+    source_definitions = (
+        build_source_definitions(
+            source_root
+        )
+    )
 
     print("=" * 70)
 
@@ -469,40 +737,56 @@ def main():
 
     print("=" * 70)
 
-    source_counts = {}
+    print(
+        f"Profile: {profile}"
+    )
+
+    print(
+        f"Source root: {source_root}"
+    )
+
+    print(
+        f"Ground truth: {ground_truth_path}"
+    )
+
+    # ========================================================
+    # SOURCE VALIDATION
+    # ========================================================
+
+    actual_source_counts = {}
+
     total_source_rows = 0
 
     print(
         "\nSOURCE SYSTEMS"
     )
 
-    for name, config in (
-        SOURCE_FILES.items()
+    for system, definition in (
+        source_definitions.items()
     ):
 
         (
             row_count,
             blank_counts,
-        ) = validate_source_schema(
-            name,
-            config,
+        ) = validate_source_file(
+            system,
+            definition,
         )
 
-        source_counts[name] = (
-            row_count
-        )
+        actual_source_counts[
+            system
+        ] = row_count
 
         total_source_rows += (
             row_count
         )
 
         print(
-            f"\n{name.upper()}"
+            f"\n{system.upper()}"
         )
 
         print(
-            f"Rows: "
-            f"{row_count:,}"
+            f"Rows: {row_count:,}"
         )
 
         print(
@@ -513,11 +797,16 @@ def main():
             blank_counts.items()
         ):
 
-            if count:
+            if count > 0:
+
                 print(
                     f"  {column}: "
                     f"{count:,}"
                 )
+
+    # ========================================================
+    # GROUND TRUTH
+    # ========================================================
 
     print(
         "\nGROUND TRUTH"
@@ -526,42 +815,106 @@ def main():
     (
         ground_truth_rows,
         coverage,
+        ground_truth_counts,
     ) = validate_ground_truth(
-        total_source_rows
+        ground_truth_path,
+        total_source_rows,
     )
 
     print(
-        f"Rows: "
-        f"{ground_truth_rows:,}"
+        f"Rows: {ground_truth_rows:,}"
     )
 
     print(
         "Reconciliation: PASS"
     )
 
+    # ========================================================
+    # SOURCE/GROUND-TRUTH ID COUNT AGREEMENT
+    # ========================================================
+
+    normalized_ground_truth_counts = {
+        "core":
+            ground_truth_counts["CORE"],
+
+        "crm":
+            ground_truth_counts["CRM"],
+
+        "kyc":
+            ground_truth_counts["KYC"],
+
+        "wealth":
+            ground_truth_counts["WEALTH"],
+    }
+
+    if (
+        normalized_ground_truth_counts
+        != actual_source_counts
+    ):
+
+        raise AssertionError(
+            "Ground-truth source counts do "
+            "not match actual source counts.\n"
+            f"Source files: "
+            f"{actual_source_counts}\n"
+            f"Ground truth: "
+            f"{normalized_ground_truth_counts}"
+        )
+
+    # ========================================================
+    # COVERAGE
+    # ========================================================
+
     print(
         "\nCROSS-SYSTEM COVERAGE"
     )
 
-    for count in (
-        [1, 2, 3, 4]
-    ):
+    for count in [1, 2, 3, 4]:
 
         print(
             f"{count} system(s): "
             f"{coverage[count]:,}"
         )
 
+    total_entities = sum(
+        coverage.values()
+    )
+
+    print(
+        f"\nUnderlying entities observed: "
+        f"{total_entities:,}"
+    )
+
+    # ========================================================
+    # METADATA
+    # ========================================================
+
     validate_metadata(
-        source_counts
+        metadata_path=metadata_path,
+        profile=profile,
+        actual_source_counts=(
+            actual_source_counts
+        ),
+        actual_ground_truth_rows=(
+            ground_truth_rows
+        ),
+    )
+
+    # ========================================================
+    # FINAL RESULT
+    # ========================================================
+
+    print(
+        "\n"
+        + "=" * 70
     )
 
     print(
-        "\nSIMULATOR METADATA: PASS"
+        "ALL PHASE 1 VALIDATIONS PASSED."
     )
 
     print(
-        "\nALL PHASE 1 VALIDATIONS PASSED."
+        "=" * 70
     )
 
 

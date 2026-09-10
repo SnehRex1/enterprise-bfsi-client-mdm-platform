@@ -42,3 +42,5 @@ data/source_systems/
 
 # Generated ground truth
 data/ground_truth/
+
+data/dev/

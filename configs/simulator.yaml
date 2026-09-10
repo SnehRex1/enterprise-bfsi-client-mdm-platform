@@ -27,3 +27,13 @@ messiness:
   conflict_rate: 0.05
 
   duplicate_rate: 0.02
+
+benchmarks:
+  dev:
+    individual_count: 20000
+    gleif_entity_count: 2000
+
+  full:
+    individual_count: 900000
+    gleif_entity_count: 94422
+
