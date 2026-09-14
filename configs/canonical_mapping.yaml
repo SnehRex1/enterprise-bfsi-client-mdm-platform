@@ -1,0 +1,27 @@
+core:
+  canonical_name: full_name
+  canonical_dob: dob
+  canonical_phone: phone
+  canonical_email: email
+  canonical_address: address
+
+crm:
+  canonical_name: customer_name
+  canonical_dob: date_of_birth
+  canonical_phone: mobile
+  canonical_email: email_address
+  canonical_address: residential_address
+
+kyc:
+  canonical_name: legal_name
+  canonical_dob: dob
+  canonical_phone: phone
+  canonical_email: null
+  canonical_address: address
+
+wealth:
+  canonical_name: client_name
+  canonical_dob: dob
+  canonical_phone: phone
+  canonical_email: email
+  canonical_address: address
