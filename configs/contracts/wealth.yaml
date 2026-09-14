@@ -1,0 +1,107 @@
+# ============================================================
+# Wealth Management Data Contract
+# ============================================================
+
+contract:
+
+  name: wealth_customer
+  version: "1.0.0"
+  source_system: wealth
+  source_owner: "Wealth Management"
+  primary_key: client_id
+
+  description: >
+    Contract for customer/client records produced by the
+    simulated Wealth Management source system.
+
+  fields:
+
+    client_id:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Unique identifier assigned by Wealth.
+
+      pattern: "^W[0-9]{8}$"
+
+    client_name:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Client name as maintained by Wealth.
+
+    dob:
+      type: string
+      semantic_type: date
+      required: true
+      nullable: true
+
+      description: >
+        Client date of birth.
+
+      allowed_formats:
+        - "%Y-%m-%d"
+        - "%d/%m/%Y"
+        - "%d-%m-%Y"
+
+    phone:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Client phone number.
+
+    email:
+      type: string
+      required: true
+      nullable: true
+
+      description: >
+        Client email address.
+
+    address:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Client address.
+
+    aum:
+      type: float
+      required: true
+      nullable: false
+
+      description: >
+        Assets under management for the client.
+
+    risk_profile:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Investment risk profile.
+
+      # Enumeration intentionally not invented.
+      allowed_values: null
+
+    relationship_manager:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Assigned relationship manager.
+
+validation:
+
+  fail_on_missing_columns: true
+  fail_on_unexpected_columns: true
+  quarantine_invalid_rows: true
+  failure_reason_column: failure_reason

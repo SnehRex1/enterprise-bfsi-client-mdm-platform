@@ -1,0 +1,119 @@
+# ============================================================
+# KYC Data Contract
+# ============================================================
+
+contract:
+
+  name: kyc_customer
+  version: "1.0.0"
+  source_system: kyc
+  source_owner: "KYC / Compliance"
+  primary_key: kyc_id
+
+  description: >
+    Contract for customer and legal-entity records produced by
+    the simulated KYC source system.
+
+  fields:
+
+    kyc_id:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Unique identifier assigned by KYC.
+
+      pattern: "^KYC[0-9]{8}$"
+
+    legal_name:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Legal/customer name maintained by KYC.
+
+    dob:
+      type: string
+      semantic_type: date
+      required: true
+      nullable: true
+
+      description: >
+        Date of birth for an individual.
+        Blank values are allowed because this KYC source
+        also contains legal entities.
+
+      allowed_formats:
+        - "%Y-%m-%d"
+        - "%d/%m/%Y"
+        - "%d-%m-%Y"
+
+    tax_id:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Tax or tax-reference identifier.
+
+    phone:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Customer/contact phone number.
+
+    address:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Customer or legal-entity address.
+
+    kyc_status:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        KYC status supplied by the source.
+
+      # Do not invent a status enumeration.
+      allowed_values: null
+
+    verification_date:
+      type: string
+      semantic_type: date
+      required: true
+      nullable: false
+
+      description: >
+        Date of KYC verification.
+
+      allowed_formats:
+        - "%Y-%m-%d"
+        - "%d/%m/%Y"
+        - "%d-%m-%Y"
+
+    LEI:
+      type: string
+      required: true
+      nullable: true
+
+      description: >
+        Legal Entity Identifier.
+        Blank is allowed because individual records do not
+        have an LEI.
+
+      pattern: "^[A-Z0-9]{20}$"
+
+validation:
+
+  fail_on_missing_columns: true
+  fail_on_unexpected_columns: true
+  quarantine_invalid_rows: true
+  failure_reason_column: failure_reason

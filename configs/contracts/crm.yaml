@@ -1,0 +1,91 @@
+# ============================================================
+# CRM Data Contract
+# ============================================================
+
+contract:
+
+  name: crm_customer
+  version: "1.0.0"
+  source_system: crm
+  source_owner: "CRM"
+  primary_key: crm_customer_id
+
+  description: >
+    Contract for customer records produced by the simulated
+    CRM source system.
+
+  fields:
+
+    crm_customer_id:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Unique identifier assigned by CRM.
+
+      pattern: "^CRM[0-9]{8}$"
+
+    customer_name:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Customer name as maintained by CRM.
+
+    date_of_birth:
+      type: string
+      semantic_type: date
+      required: true
+      nullable: true
+
+      description: >
+        Customer date of birth in CRM source format.
+
+      allowed_formats:
+        - "%Y-%m-%d"
+        - "%d/%m/%Y"
+        - "%d-%m-%Y"
+
+    mobile:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Customer mobile number.
+
+    email_address:
+      type: string
+      required: true
+      nullable: true
+
+      description: >
+        Customer email address.
+
+    residential_address:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Customer residential address.
+
+    segment:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        CRM customer segment.
+
+      # We deliberately do not invent a list of allowed values.
+      allowed_values: null
+
+validation:
+
+  fail_on_missing_columns: true
+  fail_on_unexpected_columns: true
+  quarantine_invalid_rows: true
+  failure_reason_column: failure_reason

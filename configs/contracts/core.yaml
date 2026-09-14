@@ -1,0 +1,154 @@
+# ============================================================
+# Core Banking Data Contract
+# ============================================================
+#
+# This file describes what a valid Core Banking customer record
+# is expected to look like.
+#
+# IMPORTANT:
+# This contract describes RAW source data.
+# It does NOT normalize or clean the values.
+# ============================================================
+
+contract:
+
+  # Logical name of this contract.
+  name: core_customer
+
+  # Contract version.
+  version: "1.0.0"
+
+  # Identifier for the source system.
+  source_system: core
+
+  # Human-readable owner of the data.
+  source_owner: "Core Banking"
+
+  # Primary source-system identifier.
+  primary_key: customer_id
+
+  description: >
+    Contract for customer records produced by the simulated
+    Core Banking source system.
+
+  fields:
+
+    # --------------------------------------------------------
+    # Customer identifier
+    # --------------------------------------------------------
+    customer_id:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Unique identifier assigned by Core Banking.
+
+
+      pattern: "^C[0-9]{8}$"
+
+    # --------------------------------------------------------
+    # Customer name
+    # --------------------------------------------------------
+    full_name:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Customer's full name as supplied by Core Banking.
+
+    # --------------------------------------------------------
+    # Date of birth
+    # --------------------------------------------------------
+    dob:
+      # Raw source stores the value as text.
+      type: string
+
+      # Semantically it represents a date.
+      semantic_type: date
+
+      required: true
+
+      nullable: true
+
+      description: >
+        Customer date of birth in the source-system format.
+
+      allowed_formats:
+        - "%Y-%m-%d"
+        - "%d/%m/%Y"
+        - "%d-%m-%Y"
+
+    # --------------------------------------------------------
+    # Phone
+    # --------------------------------------------------------
+    phone:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Customer phone number in source-system format.
+
+    # --------------------------------------------------------
+    # Email
+    # --------------------------------------------------------
+    email:
+      type: string
+      required: true
+      nullable: true
+
+      description: >
+        Customer email address.
+
+    # --------------------------------------------------------
+    # Address
+    # --------------------------------------------------------
+    address:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Customer address.
+
+    # --------------------------------------------------------
+    # Account
+    # --------------------------------------------------------
+    account_id:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Associated banking account identifier.
+
+    # --------------------------------------------------------
+    # Branch
+    # --------------------------------------------------------
+    branch_id:
+      type: string
+      required: true
+      nullable: false
+
+      description: >
+        Core Banking branch identifier.
+
+# ============================================================
+# Validation behavior
+# ============================================================
+
+validation:
+
+  # Fail contract validation when a required column is absent.
+  fail_on_missing_columns: true
+
+  # Fail contract validation when unexpected columns appear.
+  fail_on_unexpected_columns: true
+
+  # Invalid records must be preserved in quarantine.
+  quarantine_invalid_rows: true
+
+  # Name of the column used to explain why a record failed.
+  failure_reason_column: failure_reason
