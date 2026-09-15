@@ -1,0 +1,36 @@
+# Phase 5 survivorship policy.
+#
+# Higher number = stronger source authority.
+#
+# Initial project policy:
+# KYC > Core > CRM > Wealth
+
+source_authority:
+  KYC: 4
+  CORE: 3
+  CRM: 2
+  WEALTH: 1
+
+# Attributes that belong in the Golden Record.
+golden_attributes:
+  - name
+  - dob
+  - phone
+  - email
+  - address
+  - tax_id
+  - lei
+  - segment
+  - kyc_status
+  - verification_date
+  - aum
+  - risk_profile
+  - relationship_manager
+
+# Ranking dimensions used during survivorship.
+ranking_dimensions:
+  - source_authority
+  - verification
+  - recency
+  - completeness
+  - confidence

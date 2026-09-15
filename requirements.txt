@@ -5,4 +5,4 @@ faker==33.1.0
 requests==2.32.3
 numpy
 pandas
-rapidfuzz==3.14.1rapidfuzz==3.14.6
+rapidfuzz==3.14.6
