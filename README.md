@@ -3,9 +3,6 @@
 BFSI-focused Master Data Management platform for resolving fragmented
 client records across simulated Core Banking, CRM, KYC and Wealth systems.
 
-===============================================================================
-2. PROJECT IDENTITY
-===============================================================================
 
 What the project is:
 
