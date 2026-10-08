@@ -47,6 +47,7 @@ Later the MDM platform should determine all of these belong to one client.
 
 <img width="1408" height="768" alt="Gemini_Generated_Image_uvmi21uvmi21uvmi (2)" src="https://github.com/user-attachments/assets/1efbe395-6efd-49c6-8c52-b1217f345896" />
 
+
     Banking Digital Twin + GLEIF
                 ↓
          Source Simulator
@@ -73,32 +74,33 @@ Later the MDM platform should determine all of these belong to one client.
        ↓
      Silver
        ↓
- Candidate Blocking
+    Candidate Blocking
        ↓
- Deterministic Matching
+    Deterministic Matching
        ↓
- Fuzzy Matching
+    Fuzzy Matching
        ↓
- Explainable Scoring
+    Explainable Scoring
        ↓
- MATCH / REVIEW / NO MATCH
+    MATCH / REVIEW / NO MATCH
        ↓
- Stewardship for REVIEW
+    Stewardship for REVIEW
        ↓
- Survivorship
+    Survivorship
        ↓
- Golden Record
-   + Provenance
-   + Source Map
-   + SCD2 History
+    Golden Record
+     + Provenance
+     + Source Map
+     + SCD2 History
        ↓
- Delta Gold
+    Delta Gold
        ↓
- Unity Catalog Governance
+    Unity Catalog Governance
        ↓
- Azure SQL Serving
+    Azure SQL Serving
        ↓
- FastAPI / Streamlit / Power BI
+    FastAPI / Streamlit / Power BI
+
 
 ===============================================================================
 4. FROZEN TECHNOLOGY STACK
