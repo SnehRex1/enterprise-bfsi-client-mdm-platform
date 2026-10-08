@@ -2,6 +2,159 @@
 
 BFSI-focused Master Data Management platform for resolving fragmented
 client records across simulated Core Banking, CRM, KYC and Wealth systems.
+===============================================================================
+2. PROJECT IDENTITY
+===============================================================================
+
+What the project is:
+
+An enterprise BFSI Master Data Management platform that ingests inconsistent
+client records from multiple simulated banking systems, determines which
+records represent the same real-world client, creates one trusted Golden
+Record, preserves provenance and history, and exposes governed master data.
+
+Target profile:
+Approximately 2 YOE Data Engineer portfolio project.
+
+Frozen architecture version:
+V4.
+
+Primary business problem:
+
+    Core Banking
+    CRM
+    KYC
+    Wealth
+        ↓
+    inconsistent representations
+        ↓
+    MDM
+        ↓
+    one trusted client identity
+
+Example:
+
+    Core Banking : C10231  | Rahul Kumar Sharma | 9876543210
+    CRM          : CRM8892 | Rahul K Sharma      | +91 98765 43210
+    KYC          : KYC4421 | RAHUL KUMAR SHARMA  | 9876543210
+    Wealth       : W8821   | Rahul Sharma        | 9876543210
+
+Later the MDM platform should determine all of these belong to one client.
+
+===============================================================================
+3. FROZEN END-TO-END ARCHITECTURE
+===============================================================================
+
+<img width="1408" height="768" alt="Gemini_Generated_Image_uvmi21uvmi21uvmi (2)" src="https://github.com/user-attachments/assets/1efbe395-6efd-49c6-8c52-b1217f345896" />
+
+    Banking Digital Twin + GLEIF
+                ↓
+         Source Simulator
+                ↓
+      Core / CRM / KYC / Wealth
+                ↓
+      Azure Data Factory
+       metadata-driven ingestion
+                ↓
+             ADLS Gen2
+       raw → bronze
+                ↓
+       Contract Validation
+          ↙             ↘
+       pass          quarantine
+         ↓
+    Standardization
+         ↓
+    Canonical Client Representation
+         ↓
+    Data Quality
+       ↙       ↘
+     pass    quarantine
+       ↓
+     Silver
+       ↓
+ Candidate Blocking
+       ↓
+ Deterministic Matching
+       ↓
+ Fuzzy Matching
+       ↓
+ Explainable Scoring
+       ↓
+ MATCH / REVIEW / NO MATCH
+       ↓
+ Stewardship for REVIEW
+       ↓
+ Survivorship
+       ↓
+ Golden Record
+   + Provenance
+   + Source Map
+   + SCD2 History
+       ↓
+ Delta Gold
+       ↓
+ Unity Catalog Governance
+       ↓
+ Azure SQL Serving
+       ↓
+ FastAPI / Streamlit / Power BI
+
+===============================================================================
+4. FROZEN TECHNOLOGY STACK
+===============================================================================
+
+Cloud:
+    Azure
+
+Orchestration:
+    Azure Data Factory
+
+Storage:
+    ADLS Gen2
+
+Processing:
+    Azure Databricks + PySpark
+
+Table format:
+    Delta Lake
+
+Governance:
+    Unity Catalog
+
+Database:
+    Azure SQL
+
+API:
+    FastAPI
+
+UI:
+    Streamlit
+
+Analytics:
+    Power BI
+
+Security:
+    Azure Key Vault + Managed Identity
+
+Infrastructure as Code:
+    Terraform
+
+Testing:
+    pytest
+
+CI/CD:
+    GitHub Actions
+
+Matching:
+    Deterministic + fuzzy/explainable entity resolution
+    NO ML/LLM matching
+
+Data:
+    Banking Digital Twin + GLEIF
+
+
+
 
 ## Status
 
