@@ -11,11 +11,6 @@ client records from multiple simulated banking systems, determines which
 records represent the same real-world client, creates one trusted Golden
 Record, preserves provenance and history, and exposes governed master data.
 
-Target profile:
-Approximately 2 YOE Data Engineer portfolio project.
-
-Frozen architecture version:
-V4.
 
 Primary business problem:
 
