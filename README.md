@@ -41,6 +41,8 @@ Later the MDM platform should determine all of these belong to one client.
 <img width="1408" height="768" alt="Gemini_Generated_Image_uvmi21uvmi21uvmi (2)" src="https://github.com/user-attachments/assets/1efbe395-6efd-49c6-8c52-b1217f345896" />
 
 
+
+
     Banking Digital Twin + GLEIF
                 ↓
          Source Simulator
