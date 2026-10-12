@@ -44,3 +44,8 @@ data/source_systems/
 data/ground_truth/
 
 data/dev/
+# Generated benchmark and processing artifacts
+/data/
+
+# Power BI reports may contain imported data
+*.pbix
