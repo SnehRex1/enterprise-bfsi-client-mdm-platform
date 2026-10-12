@@ -589,14 +589,9 @@ enterprise-bfsi-client-mdm-platform/
 │   ├── config.yaml
 │   └── simulator.yaml
 ├── docs/
-│   ├── DATA_DICTIONARY.md
 │   ├── PHASE3_ENTITY_RESOLUTION.md
 │   ├── PHASE5_SURVIVORSHIP_GOLDEN_RECORD.md
-│   ├── architecture.md
-│   ├── data-model.md
 │   ├── data_contracts.md
-│   ├── entity-resolution.md
-│   ├── governance.md
 │   ├── phase1_benchmark.md
 │   └── phase2_data_quality.md
 ├── notebooks/
@@ -785,11 +780,11 @@ The repository also contains supporting screenshots for storage, managed identit
 - [Phase 3 entity resolution](docs/PHASE3_ENTITY_RESOLUTION.md)
 - [Phase 5 survivorship, Golden Record and SCD2](docs/PHASE5_SURVIVORSHIP_GOLDEN_RECORD.md)
 - [Data contracts](docs/data_contracts.md)
-- [Data model](docs/data-model.md)
-- [Data dictionary](docs/DATA_DICTIONARY.md)
-- [Entity resolution](docs/entity-resolution.md)
-- [Governance](docs/governance.md)
-- [Architecture notes](docs/architecture.md)
+
+The README contains the consolidated architecture, serving model, governance
+overview, data dictionary highlights, setup instructions and verified runtime
+results. A few scaffolded documentation files in `docs/` are currently empty
+placeholders and are intentionally not linked as reference material.
 
 ---
 
