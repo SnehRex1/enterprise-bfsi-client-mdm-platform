@@ -553,7 +553,7 @@ It runs on pushes to `main`, pull requests targeting `main`, and manual workflow
 
 [View GitHub Actions runs](https://github.com/SnehRex1/enterprise-bfsi-client-mdm-platform/actions)
 
-**CI status:** The recorded latest evidence checkpoint `c31a558` had a successful run. A documentation update triggers another run, so check Actions after the README commit.
+**CI status:** GitHub Actions passed on README commit `ca6f8be`. The workflow compiles the Python code and runs pytest; it does not deploy to Azure.
 
 ---
 
@@ -822,7 +822,6 @@ The architecture and most implementation phases are complete to the verified sco
 - Reopen the saved local Power BI PBIX and confirm only Platform Health and Entity Resolution are intended visible pages; ensure the published PDF corresponds to the final report.
 - Create/finish the concise demo runbook using existing evidence.
 - Complete the final security, repository hygiene and Azure cost review.
-- Confirm the latest README commit triggers a successful GitHub Actions run.
 
 These items are acceptance/packaging checks and do not imply that the verified FULL data-processing run needs to be regenerated.
 
