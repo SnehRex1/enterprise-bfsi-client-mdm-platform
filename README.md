@@ -1,307 +1,542 @@
 # Enterprise BFSI Client MDM & Data Governance Platform
 
-A reproducible, Azure-based Master Data Management (MDM) reference implementation for resolving fragmented customer records across simulated Core Banking, CRM, KYC, and Wealth systems. The platform standardizes and validates multi-source data, evaluates identity relationships using deterministic and fuzzy matching, creates governed Golden Records, preserves source provenance and an SCD Type 2 history model, and serves the published data through Azure SQL, FastAPI, Streamlit, and Power BI.
+An end-to-end Azure-based **Master Data Management (MDM)** reference implementation that turns inconsistent client records from four simulated banking systems into governed, explainable Golden Records. The platform combines metadata-driven ingestion, data contracts, standardization, data quality, deterministic and fuzzy entity resolution, human stewardship, attribute-level survivorship, provenance, SCD Type 2 history, Unity Catalog governance, Azure SQL serving, FastAPI, Streamlit, and Power BI.
 
-> **Scope note:** This is a portfolio/reference implementation using synthetic customer data and simulated source systems. It is not a production banking service and does not contain real customer records. The architecture is frozen at V4; this README documents the implemented system and its verified results without implying that every production-hardening feature is complete.
+> **Scope and status:** This is a portfolio/reference implementation using synthetic customer data and simulated source systems. It is not a production banking service and contains no real customer records. The architecture is frozen at V4. This README documents the implementation and results that are supported by the project’s recorded evidence; it does not imply that every production-hardening or future-run behavior has been verified.
 
-[![GitHub Actions](https://github.com/SnehRex1/enterprise-bfsi-client-mdm-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/SnehRex1/enterprise-bfsi-client-mdm-platform/actions)
-[![Python](https://img.shields.io/badge/Python-3.11-blue)](https://www.python.org/)
-[![Cloud](https://img.shields.io/badge/Cloud-Microsoft%20Azure-0078D4)](https://azure.microsoft.com/)
-[![Tests](https://img.shields.io/badge/Tests-pytest-informational)](https://docs.pytest.org/)
+<p align="center">
+  <a href="https://github.com/SnehRex1/enterprise-bfsi-client-mdm-platform/actions"><img src="https://github.com/SnehRex1/enterprise-bfsi-client-mdm-platform/actions/workflows/ci.yml/badge.svg" alt="GitHub Actions CI"/></a>
+  <img src="https://img.shields.io/badge/Python-3.11-blue" alt="Python 3.11"/>
+  <img src="https://img.shields.io/badge/Cloud-Microsoft%20Azure-0078D4" alt="Microsoft Azure"/>
+  <img src="https://img.shields.io/badge/Processing-PySpark%20%7C%20Delta%20Lake-orange" alt="PySpark and Delta Lake"/>
+  <img src="https://img.shields.io/badge/Matching-Deterministic%20%2B%20Fuzzy-purple" alt="Deterministic and fuzzy matching"/>
+</p>
 
 ---
 
 ## Table of Contents
 
-- [Business Problem](#business-problem)
-- [Architecture](#architecture)
-- [Key Results](#key-results)
-- [Technology Stack](#technology-stack)
-- [End-to-End Data Flow](#end-to-end-data-flow)
-- [Data Foundation and Benchmark](#data-foundation-and-benchmark)
-- [Data Contracts, Standardization and Quality](#data-contracts-standardization-and-quality)
-- [Entity Resolution](#entity-resolution)
-- [Stewardship](#stewardship)
-- [Survivorship and Golden Records](#survivorship-and-golden-records)
-- [Provenance and SCD Type 2 History](#provenance-and-scd-type-2-history)
-- [Unity Catalog Governance and Security](#unity-catalog-governance-and-security)
-- [Azure SQL Serving Model](#azure-sql-serving-model)
-- [FastAPI](#fastapi)
-- [Streamlit Application](#streamlit-application)
-- [Power BI Dashboards](#power-bi-dashboards)
-- [Testing and GitHub Actions](#testing-and-github-actions)
-- [Repository Structure](#repository-structure)
-- [Local Setup and Running Applications](#local-setup-and-running-applications)
-- [Documentation and Evidence](#documentation-and-evidence)
-- [Known Limitations and Honest Reporting](#known-limitations-and-honest-reporting)
-- [Security and Cost Considerations](#security-and-cost-considerations)
-- [Future Acceptance Checklist](#future-acceptance-checklist)
+1. [Why this project exists](#1-why-this-project-exists)
+2. [Architecture](#2-architecture)
+3. [Verified results at a glance](#3-verified-results-at-a-glance)
+4. [Technology stack and responsibility boundaries](#4-technology-stack-and-responsibility-boundaries)
+5. [Benchmark data foundation](#5-benchmark-data-foundation)
+6. [Step 1 — Source simulation and benchmark integrity](#step-1--source-simulation-and-benchmark-integrity)
+7. [Step 2 — Azure infrastructure and lake zones](#step-2--azure-infrastructure-and-lake-zones)
+8. [Step 3 — Metadata-driven Azure Data Factory ingestion](#step-3--metadata-driven-azure-data-factory-ingestion)
+9. [Step 4 — Bronze ingestion](#step-4--bronze-ingestion)
+10. [Step 5 — Contract validation](#step-5--contract-validation)
+11. [Step 6 — Standardization and canonical representation](#step-6--standardization-and-canonical-representation)
+12. [Step 7 — Data quality and trusted Silver](#step-7--data-quality-and-trusted-silver)
+13. [Step 8 — Candidate blocking](#step-8--candidate-blocking)
+14. [Step 9 — Deterministic matching](#step-9--deterministic-matching)
+15. [Step 10 — Fuzzy matching and explainable scoring](#step-10--fuzzy-matching-and-explainable-scoring)
+16. [Step 11 — Human stewardship](#step-11--human-stewardship)
+17. [Step 12 — Clustering and master identity](#step-12--clustering-and-master-identity)
+18. [Step 13 — Attribute-level survivorship and Golden Records](#step-13--attribute-level-survivorship-and-golden-records)
+19. [Step 14 — Provenance, source mapping, and SCD Type 2 history](#step-14--provenance-source-mapping-and-scd-type-2-history)
+20. [Step 15 — Gold certification and publication](#step-15--gold-certification-and-publication)
+21. [Step 16 — Unity Catalog governance and security](#step-16--unity-catalog-governance-and-security)
+22. [Step 17 — Azure SQL serving layer](#step-17--azure-sql-serving-layer)
+23. [Step 18 — FastAPI serving API](#step-18--fastapi-serving-api)
+24. [Step 19 — Streamlit operations UI](#step-19--streamlit-operations-ui)
+25. [Step 20 — Power BI reporting](#step-20--power-bi-reporting)
+26. [Testing and GitHub Actions](#testing-and-github-actions)
+27. [Repository layout](#repository-layout)
+28. [Run the local tests and applications](#run-the-local-tests-and-applications)
+29. [Documentation and evidence index](#documentation-and-evidence-index)
+30. [Known limitations and claims boundary](#known-limitations-and-claims-boundary)
+31. [Security and cost controls](#security-and-cost-controls)
+32. [Acknowledgements](#acknowledgements)
 
 ---
 
-## Business Problem
+## 1. Why this project exists
 
-A banking customer may be represented differently in the organization’s operational systems. Core Banking may hold a legal name, CRM may use a shortened name, KYC may hold the compliance name, and Wealth may contain an abbreviated relationship record. Phone numbers, emails, addresses, and dates may also differ in formatting or be missing.
+Customer information is rarely perfectly consistent across enterprise banking systems. Core Banking may store a legal name and account details, CRM may use a shortened name, KYC may hold compliance attributes, and Wealth may store an investment relationship. The same individual or organization may therefore appear in multiple systems with different identifiers, name formats, phone formats, addresses, missing fields, or conflicting values.
 
-For example:
+A conventional ETL pipeline can standardize the formats, but standardization alone does not establish identity. MDM adds identity resolution and an explicit process for deciding which source values should become the trusted enterprise values.
 
-| System | Example source ID | Example name | Example phone |
+Illustrative example:
+
+| Source | Source ID | Name | Phone |
 |---|---|---|---|
 | Core Banking | `C10231` | Rahul Kumar Sharma | `9876543210` |
 | CRM | `CRM8892` | Rahul K Sharma | `+91 98765 43210` |
 | KYC | `KYC4421` | RAHUL KUMAR SHARMA | `9876543210` |
 | Wealth | `W8821` | Rahul Sharma | `9876543210` |
 
-These are illustrative examples. An MDM platform must decide whether records represent the same real-world entity, determine which values should be trusted when sources disagree, and retain traceability to the evidence behind the resulting master record.
+The example is illustrative—not a record pulled from a real bank. The platform must determine whether source records refer to the same underlying entity, decide which fields should win where values disagree, and preserve enough evidence to explain the resulting Golden Record.
 
-The platform separates four different concerns:
+The design separates four questions:
 
-1. **Standardization:** make comparable representations of source attributes without erasing the original values.
-2. **Entity resolution:** score plausible record pairs and distinguish MATCH, REVIEW, and NO_MATCH outcomes.
-3. **Survivorship:** choose a winning value for each Golden Record attribute using an explicit authority and completeness policy.
-4. **Governance and serving:** preserve provenance and history, control access to sensitive fields, and expose mastered results through stable interfaces.
+1. **Can these values be compared?** Contracts, standardization, and data-quality rules handle representation and validity.
+2. **Do these records appear to represent the same entity?** Candidate blocking, deterministic rules, and fuzzy scoring evaluate identity evidence.
+3. **Which values should represent the mastered client?** Survivorship makes an attribute-by-attribute decision under a configured policy.
+4. **Can the result be governed, explained, and consumed?** Provenance, history, RBAC, masking, SQL serving, APIs, UI, and BI provide traceability and access boundaries.
 
 ---
 
-## Architecture
+## 2. Architecture
 
-The system uses Azure Data Factory for metadata-driven ingestion and Gold-to-SQL transfer; Azure Databricks and PySpark for scalable MDM processing; Unity Catalog for governance; Azure SQL as the serving database; and FastAPI, Streamlit, and Power BI for consumption.
+The system uses **Azure Data Factory (ADF)** for metadata-driven file ingestion and Gold-to-SQL transfer; **Azure Data Lake Storage Gen2 (ADLS Gen2)** for lake storage; **Azure Databricks, PySpark, and Delta Lake** for distributed MDM processing; **Unity Catalog** for Databricks governance; **Azure SQL** for the serving model; and **FastAPI, Streamlit, and Power BI** for consumption.
 
-![Enterprise BFSI Client MDM & Data Governance Platform architecture](architecture/Enterprise%20BFSI%20Client%20MDM%20Platform%20-%20Architecture%20Diagram.png)
+<p align="center">
+  <img src="architecture/Enterprise%20BFSI%20Client%20MDM%20Platform%20-%20Architecture%20Diagram.png" alt="Enterprise BFSI Client MDM and Data Governance Platform architecture" width="100%"/>
+</p>
 
-**Download/view the [architecture diagram](architecture/Enterprise%20BFSI%20Client%20MDM%20Platform%20-%20Architecture%20Diagram.png).**
+**[Open the architecture diagram at full size](architecture/Enterprise%20BFSI%20Client%20MDM%20Platform%20-%20Architecture%20Diagram.png).**
 
-### Architecture at a glance
+### End-to-end flow
 
 ```text
 Banking Digital Twin + GLEIF Golden Copy
-                  |
-                  v
-          Source Simulator
-                  |
-                  v
-       Core / CRM / KYC / Wealth
-                  |
-                  v
-        ADLS Gen2 source/ -> Azure Data Factory
-                                  |
-                                  v
-                            ADLS Gen2 raw/
-                                  |
-                                  v
-                    Databricks + PySpark / Delta Lake
-                      Bronze -> Contracts -> Standardization
-                                  -> Data Quality / Silver
-                                  -> Candidate Blocking
-                                  -> Deterministic + Fuzzy Matching
-                                  -> MATCH / REVIEW / NO_MATCH
-                                  -> Stewardship decisions
-                                  -> Accepted identity graph
-                                  -> Survivorship / Golden Records
-                                  -> Provenance / SCD2 / Gold certification
-                                  |
-                      Unity Catalog governance (cross-cutting)
-                                  |
-                                  v
-                        ADF Gold-to-SQL pipeline
-                                  |
-                                  v
-                              Azure SQL
-                           /      |       \
-                          v       v        v
-                      FastAPI  Power BI  other approved SQL consumers
+                    |
+                    v
+             Source Simulator
+                    |
+                    v
+        Core / CRM / KYC / Wealth files
+                    |
+                    v
+     ADLS Gen2 source/ -> Azure Data Factory
+                                 |
+                                 v
+                           ADLS Gen2 raw/
+                                 |
+                                 v
+                Databricks + PySpark / Delta Lake
+        Bronze -> Contract validation -> Standardization
+            -> Data Quality / trusted Silver
+            -> Candidate blocking
+            -> Deterministic + fuzzy matching
+            -> MATCH / REVIEW / NO_MATCH
+            -> Stewardship decisions
+            -> Accepted identity graph / clustering
+            -> Survivorship / Golden Records
+            -> Provenance / source map / SCD2
+            -> Gold certification
+                                 |
+                   Unity Catalog governance
+                      (cross-cutting control)
+                                 |
+                                 v
+                     ADF Gold-to-SQL pipeline
+                                 |
+                                 v
+                            Azure SQL
+                           /         \
+                          v           v
+                       FastAPI      Power BI
                           |
                           v
                        Streamlit
 ```
 
-Streamlit communicates with FastAPI and does not connect directly to Azure SQL. Power BI imports a bounded serving model rather than the full candidate-pair population. Unity Catalog applies to governed Databricks data and is not a sequential transformation stage.
+### The most important responsibility boundaries
 
-### Main architectural boundaries
-
-- **Ingestion boundary:** ADF transfers source files using configuration stored in Azure SQL. The ADF copy pipeline is metadata-driven; it does not standardize the CSV contents.
-- **Processing boundary:** Databricks performs record validation, standardization, DQ checks, candidate generation, matching, stewardship integration, clustering, survivorship, and publication.
-- **Governance boundary:** Unity Catalog provides catalog/schema/table access controls, group-based permissions, PII tags, masking functions, Catalog Explorer lineage and pipeline audit evidence.
-- **Serving boundary:** ADF copies curated Gold and supporting operational tables into Azure SQL.
-- **Application boundary:** FastAPI implements serving endpoints and decision persistence; Streamlit calls the API; Power BI consumes a small SQL import model.
-- **Engineering boundary:** Terraform, pytest and GitHub Actions support infrastructure definition, regression checks and CI. The current workflow is CI, not an Azure deployment pipeline.
+- **ADF ingestion** transfers configured source files. It does not parse and standardize customer records.
+- **Databricks** owns data validation, normalization, DQ, blocking, scoring, entity decisions, clustering, survivorship, and Gold certification.
+- **Unity Catalog** is a cross-cutting governance layer for governed Databricks tables, metadata, permissions, PII tags/masking, Catalog Explorer lineage, and recorded pipeline audit. It is not another sequential transformation step.
+- **Azure SQL** stores relational serving tables and compact operational/reporting data. It does not rerun the large-scale matching process.
+- **FastAPI** queries the serving model and persists stewardship decisions. It does not perform entity resolution or Golden Record construction.
+- **Streamlit** calls FastAPI over HTTP; it does not connect directly to Azure SQL.
+- **Power BI** imports four serving tables for two report pages; it does not import the entire candidate-pair population.
+- **GitHub Actions** performs compilation and tests. It is CI, not an automated Azure deployment workflow.
 
 ---
 
-## Key Results
+## 3. Verified results at a glance
 
-The FULL benchmark was processed through the recorded cloud run. The counts below are from the verified project checkpoint.
+The values below are from the recorded FULL cloud run and serving checkpoint. “FULL” means the official large benchmark; it does not mean that every metric below has been evaluated against full ground truth.
 
-### FULL benchmark and data quality
+### Source records and quality reconciliation
 
-| Metric | Verified result |
+| Metric | Recorded result |
 |---|---:|
 | Banking Digital Twin individuals | 900,000 |
-| Qualifying GLEIF entities | 94,422 |
-| Underlying entities | 994,422 |
+| Qualifying GLEIF legal entities | 94,422 |
+| Underlying benchmark entities | 994,422 |
 | Source records | 2,638,899 |
 | Contract-valid records | 2,638,894 |
-| Contract-quarantined records | 5 |
-| DQ-quarantined records | 25 |
+| Contract quarantines | 5 |
+| DQ quarantines | 25 |
 | Trusted Silver records | 2,638,869 |
-
-Reconciliation:
 
 ```text
 2,638,899 source records
-= 5 contract quarantines
-+ 25 data-quality quarantines
-+ 2,638,869 trusted Silver records
+  =       5 contract-quarantined records
+  +      25 DQ-quarantined records
+  + 2,638,869 trusted Silver records
 ```
 
-### FULL entity resolution and mastering
+### Entity resolution and mastering
 
-| Metric | Verified result |
+| Metric | Recorded result |
 |---|---:|
 | Candidate pairs | 138,074,372 |
-| MATCH candidates | 2,249,077 |
-| REVIEW candidates | 159,560 |
-| NO_MATCH candidates | 135,665,735 |
-| Accepted identity edges at recorded checkpoint | 2,249,078 |
+| `MATCH` candidates | 2,249,077 |
+| `REVIEW` candidates | 159,560 |
+| `NO_MATCH` candidates | 135,665,735 |
+| Accepted identity edges in serving checkpoint | 2,249,078 |
 | Master clients / Golden Records | 1,080,592 |
 | Source-map rows | 2,638,869 |
 | Golden Record attributes | 13 |
-| Attribute-level provenance/survivorship rows | 14,047,696 |
-| Initial SCD2 history rows | 14,047,696 |
+| `MASTER_CLIENT_ATTRIBUTE` rows | 14,047,696 |
+| `SURVIVORSHIP_AUDIT` rows | 14,047,696 |
+| Initial `MASTER_CLIENT_HISTORY` rows | 14,047,696 |
 | Gold publication status | `SUCCESS` |
 | Gold validation status | `ALL_GOLD_VALIDATIONS_PASSED` |
 
-The accepted-edge count includes 2,249,077 automatic MATCH edges plus one persisted approval in the recorded serving checkpoint. At that checkpoint there were two persisted stewardship decisions total: one approval and one rejection. These are point-in-time evidence counts, not a claim that all REVIEW cases were manually processed.
+At the recorded SQL checkpoint, there were two persisted stewardship decisions: one `APPROVE_MATCH` and one `REJECT_MATCH`. The accepted-edge count is 2,249,077 automatic MATCH edges plus one approved review edge. This is a point-in-time checkpoint, not a claim that all 159,560 review cases were manually processed.
 
-### Full cloud candidate-pair decision distribution
+### Decision distribution
 
-| Decision | Count | Share of candidate pairs |
+| Decision | Candidate pairs | Share of all candidate pairs |
 |---|---:|---:|
 | MATCH | 2,249,077 | 1.6289% |
 | REVIEW | 159,560 | 0.1156% |
 | NO_MATCH | 135,665,735 | 98.2556% |
 | **Total** | **138,074,372** | **100%** |
 
-Percentages are calculated from the FULL candidate-pair denominator. They are not Precision, Recall, or F1 metrics.
+These shares describe the **candidate-pair decision distribution**. They are not Precision, Recall, F1, or an independently measured accuracy rate.
 
-### Validation and application checkpoint
+### Quality and delivery checkpoint
 
-- Nine ADF serving Copy activities completed successfully in the recorded Gold-to-SQL run.
-- The Azure SQL serving checkpoint contains nine tables with reconciled row counts.
-- The Power BI import model contains four SQL tables: `mdm.platform_health` (9 rows), `mdm.pipeline_run` (1), `mdm.match_review` (159,560), and `mdm.entity_resolution_summary` (3).
-- The local API regression tests passed: 8 API tests; full pytest suite: 55 tests.
-- GitHub Actions CI passed for the recorded Phase 13 evidence commit `c31a558`.
+- All nine ADF Gold-to-SQL Copy activities succeeded in the recorded serving run.
+- The Azure SQL checkpoint contains nine serving tables with reconciled row counts.
+- The Power BI import model contains four tables: `mdm.platform_health` (9 rows), `mdm.pipeline_run` (1), `mdm.match_review` (159,560), and `mdm.entity_resolution_summary` (3).
+- Local API regression suite: **8 passed**.
+- Full local pytest suite: **55 passed**, with one non-blocking Starlette deprecation warning.
+- GitHub Actions CI passed for the recorded Phase 13 test/evidence commits.
 
-These are recorded results from the project's verification runs, not a claim of continuous production availability.
+These figures document the project's recorded verification checkpoints. They do not claim continuous production uptime.
 
 ---
 
-## Technology Stack
+## 4. Technology stack and responsibility boundaries
 
-| Area | Technology | Responsibility |
+| Component | Technology | Responsibility |
 |---|---|---|
-| Cloud | Microsoft Azure | Managed cloud environment |
-| Object storage | Azure Data Lake Storage Gen2 | Source, raw, quarantine and Delta data |
-| Ingestion/orchestration | Azure Data Factory | Metadata-driven source-to-raw copies and Gold-to-SQL publishing |
-| Processing | Azure Databricks + PySpark | Distributed data processing and MDM algorithms |
-| Table format | Delta Lake | Structured, versioned data tables |
-| Governance | Unity Catalog | Permissions, metadata, PII classification/masking, lineage |
-| Serving database | Azure SQL Database | Relational serving model |
-| API | FastAPI | REST endpoints and stewardship decision workflow |
-| UI | Streamlit | Client search, Golden Record and match review |
-| BI | Power BI | Operational health and entity-resolution analytics |
-| Identity and secrets | Microsoft Entra ID, managed identities, Azure Key Vault | Authentication and secure configuration |
-| IaC | Terraform | Infrastructure definition |
-| Local tests | pytest | Unit and API regression tests |
-| CI | GitHub Actions | Compile and test on push/PR |
-| Matching | Deterministic rules + fuzzy/explainable scoring | Entity-resolution decisions |
-| Reference data | Banking Digital Twin + GLEIF | Synthetic benchmark foundation |
+| Source foundation | Banking Digital Twin + GLEIF | Synthetic individual and legal-entity reference populations |
+| Lake storage | Azure Data Lake Storage Gen2 | Source, raw, quarantine, and Delta-backed data zones |
+| Ingestion and transfer | Azure Data Factory | Metadata-driven source-to-raw copies and Gold-to-SQL publishing |
+| Distributed processing | Azure Databricks + PySpark | Contracts, normalization, DQ, entity resolution, mastering, and publication |
+| Table format | Delta Lake | Structured tables used by Databricks |
+| Governance | Unity Catalog | RBAC, tags, column masking, catalog metadata, Catalog Explorer lineage |
+| Serving database | Azure SQL Database | Relational Golden Record and operational serving tables |
+| API | FastAPI | Query endpoints and stewardship decision workflow |
+| Browser UI | Streamlit | Client search, Golden Record inspection, and match review |
+| Reporting | Power BI | Platform health and entity-resolution dashboards |
+| Identity / secrets | Microsoft Entra ID, managed identities, Azure Key Vault | Authentication and protected configuration |
+| Infrastructure definitions | Terraform | Infrastructure-as-code artifacts |
+| Tests and CI | pytest, GitHub Actions | Regression tests, compilation, and automated checks |
+| Matching | Deterministic rules + fuzzy/explainable scoring | Explainable identity decisions |
 
-The matching engine does not use an ML or LLM model. Kafka, Event Hubs, Kubernetes, Airflow, Snowflake, AWS, a fifth source system and a third Power BI dashboard are outside the frozen project scope.
+The design intentionally excludes additional systems such as Kafka, Event Hubs, Kubernetes, Airflow, AWS, Snowflake, ML/LLM-based matching, a fifth source system, and a third Power BI dashboard. These are outside the frozen project scope.
 
 ---
 
-## End-to-End Data Flow
+## 5. Benchmark data foundation
 
-### 1. Source generation and benchmark isolation
+The project has separate **FULL** and **DEV** benchmark tiers. This is important because a repeatable engineering workflow should not require running the entire benchmark every time a small code change is made.
 
-The benchmark combines 900,000 synthetic individuals from the Banking Digital Twin with 94,422 eligible UK legal entities from a frozen GLEIF Level 1 Golden Copy snapshot. The GLEIF filter is country `GB`, entity status `ACTIVE`, and registration status `ISSUED`.
+### FULL benchmark
 
-The simulator projects underlying entities into four heterogeneous source schemas. The hidden `entity_key` is stored in the separate ground-truth file and never appears in source-system files or becomes a matching feature. Later, MDM creates its own `MASTER_CLIENT_ID`.
+The frozen FULL benchmark combines:
 
-The fixed seed is `42`. The Phase 1 benchmark is frozen; small changes should be tested against DEV rather than casually regenerating FULL.
+- **900,000 individuals** from the Banking Digital Twin foundation.
+- **94,422 qualifying UK legal entities** from a GLEIF Level 1 Golden Copy snapshot.
+- **994,422 underlying entities** in total.- **2,638,899 source records** across four simulated systems.
 
-### 2. Metadata-driven Azure Data Factory ingestion
+The GLEIF snapshot selection uses country `GB`, entity status `ACTIVE`, and registration status `ISSUED`. The final count is the qualifying population available in the selected snapshot, rather than an artificially padded target.
 
-The ingestion pipeline is `pl_bfsi_mdm_ingest`. Its control metadata is in `dbo.adf_ingestion_control`.
+### FULL source-system populations
 
-The table defines the source system, source and target containers/folders/files, load type, active flag and load order. ADF looks up active rows, iterates over the configured systems and copies files from `source/` to `raw/`. Four configured sources are handled by the same parameterized pattern.
+| Source system | Logical records |
+|---|---:|
+| Core Banking | 964,240 |
+| CRM | 660,223 |
+| KYC | 811,892 |
+| Wealth | 202,544 |
+| **Total** | **2,638,899** |
 
-This design keeps ingestion configuration separate from customer data and makes it easier to add or change ingestion metadata without implementing four unrelated pipelines. The copy operation transfers the files; parsing and transformations take place downstream in Databricks.
+### Coverage across systems
 
-### 3. Bronze ingestion
+| Number of systems containing the entity | Entities |
+|---|---:|
+| 1 | 72,720 |
+| 2 | 348,465 |
+| 3 | 475,828 |
+| 4 | 97,409 |
+| **Total** | **994,422** |
 
-Notebook: `notebooks/databricks/MDM_DATAPLATFORM/01_bronze` (notebook artifacts are organized in the subfolders under the Databricks workspace path).
+Every simulated underlying entity appears in at least one source system; 97,409 entities appear in all four.
 
-Bronze reads the four CSV inputs with explicit source schemas and writes Delta tables. It adds metadata such as batch ID, ingestion timestamp and record hash while preserving the source data needed for later investigation. Multiline-aware CSV parsing is important because quoted fields may contain embedded newlines: physical line counts are not the same as logical CSV record counts.
+### DEV benchmark
 
-### 4. Contract validation
+DEV is a smaller workbench of **22,000 entities and 58,370 source records**, used for local development, debugging, and rapid matching experiments.
 
-Four YAML contracts live in `configs/contracts/`:
+| DEV source | Records |
+|---|---:|
+| Core Banking | 21,258 |
+| CRM | 14,552 |
+| KYC | 18,048 |
+| Wealth | 4,512 |
+| **Total** | **58,370** |
+
+Use DEV for iterations and use FULL for planned acceptance-scale checks. The FULL benchmark is frozen; change it only as a deliberate new benchmark version.
+
+### Why the simulator deliberately adds messiness
+
+The source simulator creates different source schemas and introduces name/middle-name variation, case variation, shortened corporate suffixes, phone/date formatting differences, address variation, missing values, genuinely conflicting values, and same-source duplicates.
+
+Recorded FULL simulator statistics include seed `42`, 269,177 generated middle names, 91,743 phone conflicts, 40,115 email conflicts, and 2,813 zero-source fallbacks. Duplicate source rows recorded by source were 19,071 Core, 13,046 CRM, 15,998 KYC and 4,014 Wealth.
+
+A missing value is not automatically a DQ failure. A DOB is not applicable to a legal entity, for example, and an LEI is not expected for every individual. The quality checks must reflect the semantics of the entity type.
+
+### Hidden ground truth is not an algorithm feature
+
+The benchmark ground-truth file maps each generated source record to a hidden `entity_key`:
+
+```text
+source_system, source_id, entity_key
+```
+
+The source-system records do **not** contain `entity_key`. It is used for evaluation only and is not supplied to candidate blocking, scoring, matching, clustering, or the serving API. `MASTER_CLIENT_ID` is a later MDM output, not a Phase 1 source identifier.
+
+The fixed seed is `42`. The GLEIF snapshot, source schemas, simulator parameters and FULL source population form the reproducible benchmark baseline.
+
+**Evidence and source notes:**
+- [Phase 1 benchmark manifest](docs/phase1_benchmark.md)
+- [Banking Digital Twin](https://github.com/meetnishant/BankingDigitalTwin)
+- [GLEIF](https://www.gleif.org/)
+
+---
+
+## Step 1 — Source simulation and benchmark integrity
+
+The source simulator builds a common internal entity representation, then projects each entity into the source-specific Core, CRM, KYC and Wealth schemas. These schemas have different identifiers and different attribute names because they represent different operational functions.
+
+Examples of related fields are:
+
+| Canonical concept | Core | CRM | KYC | Wealth |
+|---|---|---|---|---|
+| Name | `full_name` | `customer_name` | `legal_name` | `client_name` |
+| DOB | `dob` | `date_of_birth` | `dob` | `dob` |
+| Phone | `phone` | `mobile` | `phone` | `phone` |
+| Email | `email` | `email_address` | Not present in the Phase 1 KYC schema | `email` |
+| Address | `address` | `residential_address` | `address` | `address` |
+
+The simulator validates source schemas, source ID sequencing, the one-to-one source-row/ground-truth mapping count, cross-system coverage, hidden-key leakage, metadata consistency, and the presence of expected missingness, conflicts and duplicates. The final Phase 1 validator reported:
+
+`ALL PHASE 1 VALIDATIONS PASSED.`
+
+Do not compare raw physical file line counts with logical CSV rows without accounting for quoted multiline fields. The final CSV validator uses logical record reading.
+
+---
+
+## Step 2 — Azure infrastructure and lake zones
+
+The recorded development environment uses Azure resources for ADLS Gen2, ADF, Azure Databricks, Unity Catalog, Azure SQL, Key Vault, managed identities and RBAC. Terraform files are included as infrastructure definitions; their presence alone does not establish that every live resource was created exclusively by Terraform.
+
+The lake layout separates data by responsibility:
+
+| Zone | Purpose |
+|---|---|
+| `source/` | Staged source-system files produced by the simulator |
+| `raw/` | File copies landed by ADF before structured transformation |
+| Bronze | Structured source data preserved in Delta tables with ingestion metadata |
+| Silver | Standardized and quality-approved canonical source records |
+| Gold | Master Golden Records and supporting source map, provenance, audit and history outputs |
+| `quarantine/` | Records rejected by contract or DQ checks, with failure context |
+| `$logs/` | Storage logging area |
+
+This separation preserves rejected records for investigation rather than silently removing them. Bronze/Silver/Gold are logical data-processing boundaries; they are not separate compute engines.
+
+![Azure development resource group and provisioned MDM resources](screenshots/01_Azure_Infrastructure_and_Storage/01_Azure_Resource_Group_Provisioned_MDM_Resources.png)
+
+*Evidence: Azure resource group and MDM resources.*
+
+![ADLS Gen2 containers](screenshots/01_Azure_Infrastructure_and_Storage/02_ADLS_Gen2_Storage_Containers.png)
+
+*Evidence: storage containers used by the pipeline.*
+
+---
+
+## Step 3 — Metadata-driven Azure Data Factory ingestion
+
+ADF uses the pipeline `pl_bfsi_mdm_ingest` and the Azure SQL configuration table `dbo.adf_ingestion_control`.
+
+The control table defines the source system, source and target containers/folders/files, load type, enabled state, and load order. The pipeline looks up active configuration rows, loops over the four configured systems, and copies the files to their corresponding `raw/` destinations. The datasets are parameterized, so the same pipeline structure handles Core, CRM, KYC and Wealth.
+
+```text
+dbo.adf_ingestion_control
+             |
+             v
+ Lookup active rows
+             |
+             v
+ ForEach configured source
+             |
+             v
+ Copy source file to raw/
+```
+
+The ADF managed identity receives the permissions needed for its ingestion and serving operations; it does not require broad database-owner access simply to read the control metadata. The recorded source ingestion run completed successfully for all four Copy activities.
+
+![ADF metadata-driven ingestion success](screenshots/02_Azure_Data_Factory/11_ADF_Metadata_Driven_Source_Ingestion_Success.png)
+
+*Evidence: successful metadata-driven ingestion of the configured source files.*
+
+The Gold-to-SQL process is a separate pipeline and is described in [Step 17 — Azure SQL serving layer](#step-17--azure-sql-serving-layer).
+
+---
+
+## Step 4 — Bronze ingestion
+
+**Notebook area:** `notebooks/databricks/MDM_DATAPLATFORM/`
+
+Bronze reads the four raw CSV files using explicit source schemas and writes them into Delta-backed Bronze tables. It adds metadata such as `batch_id`, `ingestion_timestamp`, and `record_hash`, while preserving original source values for later comparison and investigation.
+
+The FULL Bronze population is **2,638,899 records**, matching the source benchmark. Multiline-aware CSV parsing is required because quoted fields can contain embedded newlines. A physical line count is therefore not necessarily a logical row count.
+
+Bronze deliberately does not do identity matching or choose Golden Record winners. It establishes a structured ingestion checkpoint for later stages.
+
+![Databricks Bronze ingestion for all four source systems](screenshots/03_Databricks_Data_Processing_and_MDM/15_Databricks_Bronze_Ingestion_All_Four_Source_Systems.png)
+
+*Evidence: all four source systems loaded to Bronze.*
+
+---
+
+## Step 5 — Contract validation
+
+Each source has a YAML contract under `configs/contracts/`:
 
 - `core.yaml`
 - `crm.yaml`
 - `kyc.yaml`
 - `wealth.yaml`
 
-Contracts express expected fields, data types, required columns, row-level nullability, patterns, semantic dates and enumerations only where verified. Contract failures go to quarantine with a failure reason; rows are not silently dropped.
+Contracts describe the expected schema and the rules that the source must meet, including required columns, data types, required/null behavior and configured format or semantic checks. A type-valid field can still be semantically invalid; contract validation is the initial source conformance boundary, not the complete DQ layer.
 
-The FULL cloud run recorded 5 contract-quarantined records and 2,638,894 contract-valid records.
+Invalid rows are written to contract quarantine with their failure context. They are not silently discarded, and the pipeline continues with contract-valid data.
 
-### 5. Standardization and canonical representation
+### FULL contract result
 
-Source-specific fields are mapped to common concepts. For example, Core `full_name`, CRM `customer_name`, KYC `legal_name` and Wealth `client_name` map to canonical `name`.
-
-The implementation keeps raw and normalized forms of comparable attributes such as name, DOB, phone, email and address. Source system and source ID remain available for record identity and provenance. Missing values remain missing rather than being invented during standardization.
-
-### 6. Data quality and trusted Silver
-
-DQ checks assess normalized names and identifiers, phone/email/DOB validity, future dates, unrealistic ages, and raw-versus-normalized consistency. DQ is distinct from contract validation: a field can have the correct type and still contain a semantically invalid value.
-
-In the FULL run, DQ quarantined 25 records for normalized-email validation. The resulting trusted population was 2,638,869 records.
-
-### 7. Candidate blocking
-
-Comparing every pair among millions of records would be computationally impractical. Blocking creates plausible candidate pairs from shared keys, such as DOB plus postal code, surname plus DOB, normalized email and phone-based keys.
-
-The FULL implementation uses a compact, key-first approach to reduce shuffle and spill. The final full-value phone blocking configuration generated 138,074,372 candidate pairs from trusted Silver. Blocking is a candidate-generation step, not a decision that the records match.
-
-### 8. Deterministic matching
-
-The implemented exact rules include:
-
-- `lei_exact`
-- `tax_id_exact`
-- `phone_dob_exact`
-- `email_dob_exact`
-
-The FULL cloud run recorded the following rule counts:
-
-| Rule | Count |
+| Measure | Rows |
 |---|---:|
-| `phone_dob_exact` | 1,961,486 |
-| `email_dob_exact` | 70,298 |
-| `tax_id_exact` | 14,567 |
-| `lei_exact` | 1,431 |
-| **Total recorded rule counts** | **2,047,782** |
+| Bronze input | 2,638,899 |
+| Contract-valid | 2,638,894 |
+| Contract quarantine | 5 |
 
-These are execution counts, not a full-ground-truth accuracy score.
+Five records were quarantined by contract validation in the recorded FULL cloud run.
 
-### 9. Fuzzy matching and explainable scoring
+![Contract validation and standardization results](screenshots/03_Databricks_Data_Processing_and_MDM/16_Databricks_Contract_Validation_and_Standardization_Results.png)
 
-The FULL cloud configuration computes similarity for name, phone, address, email and DOB using Spark-native Levenshtein-based logic. The local DEV reference implementation uses RapidFuzz. The two implementations should not be assumed to have identical behavior without a direct comparative evaluation.
+*Evidence: contract validation and downstream standardization output.*
 
-The documented FULL cloud weights are:
+---
+
+## Step 6 — Standardization and canonical representation
+
+The source-specific fields are converted to a common client representation. For example, Core `full_name`, CRM `customer_name`, KYC `legal_name`, and Wealth `client_name` become canonical `name`.
+
+The pipeline preserves both raw and normalized values where comparison requires them:
+
+- `name` / `normalized_name`
+- `dob` / `normalized_dob`
+- `phone` / `normalized_phone`
+- `email` / `normalized_email`
+- `address` / `normalized_address`
+
+Source system, source ID and record key are retained for traceability. Other business attributes—such as tax ID, LEI, segment, KYC status, verification date, AUM, risk profile and relationship manager—are mapped when the source schema supplies them. Missing values remain missing instead of being fabricated.
+
+Normalization makes comparable representations easier to match; it does not itself prove the records belong to the same entity.
+
+---
+
+## Step 7 — Data quality and trusted Silver
+
+DQ runs after contract validation and standardization. It checks semantic validity and fitness for matching, including normalized name and identifier presence, phone/email/DOB checks, future DOBs, unrealistic ages, reference data checks, and raw-versus-normalized consistency.
+
+A record can satisfy a schema contract and still fail a semantic DQ rule. Conversely, missing fields that are not applicable to an entity type should not automatically be considered bad data.
+
+### FULL DQ reconciliation
+
+| Source | Input after contract validation | Trusted | DQ quarantine |
+|---|---:|---:|---:|
+| Core | 964,240 | 964,228 | 12 |
+| CRM | 660,223 | 660,214 | 9 |
+| KYC | 811,890 | 811,890 | 0 |
+| Wealth | 202,541 | 202,537 | 4 |
+| **Total** | **2,638,894** | **2,638,869** | **25** |
+
+The recorded 25 DQ-quarantined records failed normalized-email validation. The trusted Silver output is:
+
+`bfsi_mdm_dev.silver.all_clients`
+
+The reconciliation is exact:
+
+```text
+2,638,894 contract-valid
+= 25 DQ quarantines
++ 2,638,869 trusted Silver records
+```
+
+![Databricks Silver data-quality verification](screenshots/03_Databricks_Data_Processing_and_MDM/17_Databricks_Silver_Data_Quality_Verification.png)
+
+*Evidence: trusted Silver data-quality validation.*
+
+---
+
+## Step 8 — Candidate blocking
+
+A naive all-pairs comparison among 2,638,869 records would involve approximately 3.48 trillion unordered pairs:
+
+\[
+\frac{N(N-1)}{2}
+\]
+That search space is unnecessary for candidate generation. **Blocking** creates a smaller set of plausible pairs sharing selected keys; the matching logic then evaluates those candidate pairs.
+
+The implemented strategies include:
+
+- DOB + postal code
+- Surname + DOB
+- Normalized email
+- Full normalized 10-digit phone key in the final FULL cloud configuration
+
+The final cloud implementation uses a compact key-first approach to reduce shuffle and spill: candidate identifiers are produced first, then enriched with the attribute values used for scoring. A previous shorter phone-suffix strategy generated excessively large candidate populations; the final full-value phone key reduced the candidate population to the recorded size without applying an arbitrary block-size cap.
+
+**FULL result: 138,074,372 candidate pairs.**
+
+Blocking is not a match decision. It is a candidate-generation compromise between compute cost and retaining plausible pairs.
+
+---
+
+## Step 9 — Deterministic matching
+
+Deterministic matching identifies high-confidence pairs using exact agreement on configured combinations of attributes. It is explainable because a rule name describes the condition that fired.
+
+| Rule | Meaning | FULL recorded count |
+|---|---|---:|
+| `phone_dob_exact` | Exact normalized phone and DOB agreement | 1,961,486 |
+| `email_dob_exact` | Exact normalized email and DOB agreement | 70,298 |
+| `tax_id_exact` | Exact tax identifier agreement | 14,567 |
+| `lei_exact` | Exact legal entity identifier agreement | 1,431 |
+| **Total recorded rule counts** |  | **2,047,782** |
+
+Names alone are not sufficiently discriminating to establish identity. Strong identifiers and combinations of evidence reduce the risk of accidental merges. These rule counts describe the recorded cloud execution and should not be interpreted as FULL ground-truth accuracy metrics.
+
+---
+
+## Step 10 — Fuzzy matching and explainable scoring
+
+Deterministic rules cannot capture every legitimate match. Source records may have initials, missing fields, formatting differences or near-matching values. Fuzzy scoring evaluates the candidate pair across multiple attributes.
+
+The FULL cloud implementation uses Spark-native Levenshtein-based similarity so that scoring executes in the distributed environment. The local DEV reference implementation uses RapidFuzz 3.14.6; the two implementations should not be assumed identical without a dedicated comparative evaluation.
+
+### FULL cloud scoring weights
 
 | Attribute | Weight |
 |---|---:|
@@ -310,36 +545,142 @@ The documented FULL cloud weights are:
 | Address | 20% |
 | Email | 10% |
 | DOB | 10% |
+| **Total** | **100%** |
 
-The matching result retains attribute-level scores, aggregate score, matching rule, decision and an explanation/reason. The documented decision thresholds are:
+The result retains per-attribute scores, aggregate `match_score`, `matching_rule`, `decision`, and a `match_reason`/explanation. That evidence supports debugging and stewardship.
 
-- `MATCH`: score >= 85
-- `REVIEW`: 70 <= score < 85
-- `NO_MATCH`: score < 70
+### Decision policy
 
-The local DEV benchmark previously measured precision 99.9926%, recall 97.4423%, F1 98.7010%, and blocking recall 99.4769% for the validated DEV configuration. **These are DEV metrics, not FULL cloud metrics.** A FULL precision/recall/F1 claim would require a full evaluation against hidden ground truth using the specific FULL matching configuration.
+| Decision | Score threshold | Meaning |
+|---|---:|---|
+| `MATCH` | `score >= 85` | Automatically accepted candidate edge |
+| `REVIEW` | `70 <= score < 85` | Needs human review |
+| `NO_MATCH` | `score < 70` | Do not merge this candidate pair |
 
-### 10. Human stewardship
+### FULL candidate-pair distribution
 
-REVIEW cases are not automatically merged. A steward examines both source records, the score, matching rule, field-level evidence and explanation, then submits an approval or rejection through the application.
+| Decision | Count | Share of candidate pairs |
+|---|---:|---:|
+| MATCH | 2,249,077 | 1.6289% |
+| REVIEW | 159,560 | 0.1156% |
+| NO_MATCH | 135,665,735 | 98.2556% |
+| **Total** | **138,074,372** | **100%** |
 
-The case records retain state, decision, steward ID, reason and timestamp. The API's transaction checks for an existing decision and returns HTTP 409 for a duplicate decision. An approval or rejection updates the case to `RESOLVED` and inserts a decision-audit row.
+![Databricks entity-resolution decisions and matching rules](screenshots/03_Databricks_Data_Processing_and_MDM/18_Databricks_Entity_Resolution_Decisions_and_Matching_Rules.png)
 
-At the recorded Azure SQL checkpoint, 159,560 review cases existed and two decisions were persisted: one `APPROVE_MATCH` and one `REJECT_MATCH`. This implies 159,558 unresolved cases at that checkpoint; it does not mean that every review case was handled manually.
+*Evidence: the distributed entity-resolution decision counts and matching rules.*
 
-### 11. Clustering and master identity
+### Accuracy metrics: DEV versus FULL
 
-The mastering stage builds an accepted identity graph from automatic MATCH edges and explicit `APPROVE_MATCH` stewardship decisions. REJECT_MATCH, unresolved REVIEW and NO_MATCH edges are excluded.
+The local DEV configuration previously measured:
 
-Connected components group records transitively: if A is accepted as matching B and B matches C, all three may belong to the same cluster even without a direct A-C edge. The FULL cloud implementation used iterative distributed label propagation and converged in five iterations for the recorded graph.
+| DEV metric | Result |
+|---|---:|
+| Precision | 99.9926% |
+| Recall | 97.4423% |
+| F1 | 98.7010% |
+| Blocking recall | 99.4769% |
 
-The master registry maps `SOURCE_SYSTEM::SOURCE_ID` to `MASTER_CLIENT_ID`. The initial FULL run produced 1,080,592 master identities from 2,638,869 trusted source records. Registry reuse logic exists, but cross-run master-ID stability has not yet been empirically demonstrated by the initial FULL run.
+These are **DEV benchmark results only**. A full Precision/Recall/F1 claim for the FULL cloud configuration requires evaluating that configuration against the isolated FULL ground truth. The candidate distribution by itself does not establish the factual accuracy of the decisions.
 
-### 12. Attribute-level survivorship
+---
 
-A master record is not created by selecting one entire source row. Each Golden Record attribute is selected independently according to the project policy.
+## Step 11 — Human stewardship
 
-Source authority is:
+Pairs in the REVIEW band are deliberately not merged automatically. A steward should inspect the records, compare the match evidence, make a decision and provide a reason.
+
+A stewardship case tracks the candidate pair, case status, decision, steward ID, decision reason, and decision timestamp. Case IDs are derived deterministically from the canonical pair of record keys, so the same pair can be referenced consistently when pair ordering is canonicalized.
+
+### Review lifecycle
+
+```text
+REVIEW candidate
+      |
+      v
+OPEN stewardship case
+      |
+      +---- APPROVE_MATCH ----> RESOLVED
+      |                          |
+      |                          v
+      |                   Accepted graph edge
+      |
+      +---- REJECT_MATCH -----> RESOLVED
+                                 |
+                                 v
+                         Excluded from graph
+```
+
+The API checks for an existing decision within its transaction. A duplicate resolution returns HTTP 409 instead of silently overwriting the prior decision. An accepted review edge is created only from an explicit `APPROVE_MATCH` decision. A rejection, unresolved review case, or NO_MATCH pair is not an accepted edge.
+
+### Recorded review checkpoint
+
+- REVIEW cases: **159,560**
+- Persisted decisions: **2**
+  - `1 × APPROVE_MATCH`
+  - `1 × REJECT_MATCH`
+- Accepted manual review edges: **1**
+
+This point-in-time checkpoint does not mean all review cases were manually reviewed.
+
+![Databricks stewardship decision results](screenshots/03_Databricks_Data_Processing_and_MDM/19_MDM_Stewardship_Decision_Results.png)
+
+*Evidence: recorded stewardship decision results.*
+
+---
+
+## Step 12 — Clustering and master identity
+
+Pairwise edges must be converted into identity groups because one real client can have records in three or four systems. The mastering stage uses **connected components** over the accepted identity graph.
+
+Only these edges enter the accepted graph:
+
+- Automatic `MATCH` results.
+- Explicitly approved stewardship decisions (`APPROVE_MATCH`).
+
+The graph excludes `REJECT_MATCH`, unresolved REVIEW and `NO_MATCH` pairs.
+
+For example:
+
+```text
+A --- B --- C
+
+D --- E
+
+F
+```
+
+The first three records form one component, D and E form another, and F is a valid singleton component. Accepted edges imply transitive group membership; a direct A–C edge is not required if the accepted path connects them.
+
+The FULL cloud implementation used distributed iterative label propagation and converged in five iterations for the recorded graph. Every trusted source record was mapped into the resulting master population:
+
+| Mastering validation | Result |
+|---|---:|
+| Trusted Silver records | 2,638,869 |
+| Source records mapped | 2,638,869 |
+| Null master IDs | 0 |
+| Distinct master clients | 1,080,592 |
+
+`MASTER_CLIENT_ID` identifies the mastered entity; it is distinct from the hidden benchmark-only `entity_key`.
+
+The master registry maps:
+
+```text
+SOURCE_SYSTEM::SOURCE_ID -> MASTER_CLIENT_ID
+```
+
+Registry reuse logic exists, but cross-run identifier stability has not been empirically demonstrated by the initial FULL run.
+
+![Golden Record survivorship and source-map output](screenshots/03_Databricks_Data_Processing_and_MDM/20_Golden_Record_Survivorship_and_Source_Map_Output.png)
+
+*Evidence: mastered Golden Record and source-map outputs.*
+
+---
+
+## Step 13 — Attribute-level survivorship and Golden Records
+
+A Golden Record should not simply copy one entire source row. The most authoritative name might come from KYC, while the best email may come from Core and the segment may come from CRM. The platform therefore performs survivorship independently for each attribute.
+
+### Project-defined source authority
 
 | Source | Authority score |
 |---|---:|
@@ -348,218 +689,322 @@ Source authority is:
 | CRM | 2 |
 | Wealth | 1 |
 
-The documented ranking dimensions are source authority, verification, recency, completeness, match confidence and deterministic tie-breakers. Verification is inferred from the presence of `verification_date`; a missing recency value uses the configured fallback date `1900-01-01`.
+This is the project's configured policy, not a universal banking standard. The ranking dimensions include source authority, verification, recency, completeness, match confidence, and deterministic tie-breakers. Verification is based on the presence of `verification_date`; the documented fallback for missing recency is `1900-01-01`.
 
-The 13 Golden Record attributes are:
+### Thirteen Golden Record attributes
 
-`name`, `dob`, `phone`, `email`, `address`, `tax_id`, `lei`, `segment`, `kyc_status`, `verification_date`, `aum`, `risk_profile`, and `relationship_manager`.
+1. `name`
+2. `dob`
+3. `phone`
+4. `email`
+5. `address`
+6. `tax_id`
+7. `lei`
+8. `segment`
+9. `kyc_status`
+10. `verification_date`
+11. `aum`
+12. `risk_profile`
+13. `relationship_manager`
 
-The authority policy is specific to this project; it is not presented as a universal banking standard.
+The initial FULL run produced **1,080,592 Golden Records**. The selected values are supported by attribute-level source provenance and survivorship reasoning.
 
-### 13. Provenance, source map and SCD Type 2
+---
 
-The mastering outputs include:
+## Step 14 — Provenance, source mapping, and SCD Type 2 history
 
-- `MASTER_CLIENT`: current Golden Record values.
-- `CLIENT_SOURCE_MAP`: mapping from source system/ID to the master.
-- `MASTER_CLIENT_ATTRIBUTE`: winning value, winning source and survivorship reason for each master attribute.
-- `SURVIVORSHIP_AUDIT`: attribute-level selection audit.
-- `MASTER_CLIENT_HISTORY`: SCD Type 2 attribute history.
+Current values answer “what is the mastered value now?” Provenance and history address “where did it come from?”, “why did it win?”, and “what versions have been recorded?”
 
-The FULL outputs contain 1,080,592 masters, 2,638,869 source mappings and 14,047,696 attribute-level provenance/survivorship rows. The audit/history grain is 13 attributes per master:
+### Gold mastering outputs
 
-`1,080,592 × 13 = 14,047,696`.
+| Output | Responsibility | Recorded row count |
+|---|---|---:|
+| `MASTER_CLIENT` | Current Golden Record | 1,080,592 |
+| `CLIENT_SOURCE_MAP` | Source system/ID to master mapping | 2,638,869 |
+| `MASTER_CLIENT_ATTRIBUTE` | Attribute value, winning source and survivorship reason | 14,047,696 |
+| `SURVIVORSHIP_AUDIT` | Attribute-level survivorship audit | 14,047,696 |
+| `MASTER_CLIENT_HISTORY` | SCD Type 2 attribute history | 14,047,696 |
 
-SCD2 stores effective date, expiry date and current-row state. The initial FULL load produced 14,047,696 current rows and zero expired rows, as expected for an initial load. The later-run expiration logic exists, but a subsequent changed-value run has not been verified as empirical evidence of expiry behavior.
+The three attribute-level outputs have a grain of one row per master per Golden Record attribute:
 
-### 14. Gold certification and publication
+```text
+1,080,592 master records × 13 attributes = 14,047,696 rows
+```
 
-The `08_gold_publish` stage validates the certified Gold boundary. Checks include master-ID uniqueness, source-map uniqueness and coverage, provenance completeness, current-history consistency and reference integrity.
+### SCD Type 2 behavior
 
-The recorded FULL publication audit reports `SUCCESS` and `ALL_GOLD_VALIDATIONS_PASSED`. The audit is stored in the Databricks pipeline run audit table.
+The history model stores `master_client_id`, attribute/field, value, `effective_date`, `expiry_date`, and `is_current`. On an initial load, every mastered attribute receives a current history version.
 
-### 15. Unity Catalog governance
+The implemented change-handling logic is designed to:
 
-The implemented Databricks catalog is `bfsi_mdm_dev`, organized into schemas including `bronze`, `silver`, `gold`, `mdm`, `quarantine` and `audit`.
+1. Keep an existing current row when a value is unchanged.
+2. Expire an old version and create a new current version when a value changes.
+3. Create a current version when a value first appears.
+4. Expire a previous version when a value is no longer populated.
 
-Governance evidence covers catalog/schema/table permissions, RBAC groups (`mdm_engineers`, `mdm_stewards`, `mdm_analysts`, `mdm_pii_access`), PII tags/classification, masking functions for email/phone/tax ID, Catalog Explorer lineage and pipeline audit.
+### What the initial FULL run proves
 
-Masked columns return reduced values for users without the authorized PII group. The serving ADF managed identity has explicit access to read original governed values for the approved Gold-to-SQL transfer.
+| Initial SCD2 validation | Result |
+|---|---:|| History rows | 14,047,696 |
+| Current rows | 14,047,696 |
+| Expired rows | 0 |
+| Validation | PASS |
 
-Catalog Explorer lineage for the Gold master table was verified. Direct SQL queries against Databricks `system.access` lineage/audit tables were permission-limited and are not claimed as verified.
+Zero expired rows is expected for an initial load. A subsequent changed-value run has not been verified as evidence of an actual expiry transition.
 
-### 16. Azure SQL serving
+![Golden Record provenance and SCD2 history validation](screenshots/03_Databricks_Data_Processing_and_MDM/21_Golden_Record_Provenance_and_SCD2_History_Validation.png)
 
-ADF pipeline `pl_bfsi_mdm_gold_to_sql` transfers curated Gold and supporting operational data into the `mdm` schema. The recorded run had nine successful serving Copy activities.
+*Evidence: provenance and initial SCD2 history validation.*
 
-| Azure SQL table/view | Role | Recorded rows |
+---
+
+## Step 15 — Gold certification and publication
+
+The `08_gold_publish` stage validates the Gold publication boundary after mastering. The checks include:
+
+- Required output tables exist.
+- Master identifiers are unique.
+- Source-to-master mappings are unique and cover the trusted Silver population.
+- Provenance and survivorship audit outputs are complete.
+- Current-history invariants hold for each master/attribute.
+- Gold table references and row-count relationships are valid.
+
+The recorded FULL publication audit reports:
+
+```text
+Publication status: SUCCESS
+Validation status:  ALL_GOLD_VALIDATIONS_PASSED
+```
+
+Publication audit evidence is persisted in `bfsi_mdm_dev.audit.pipeline_run_audit`. It is the hand-off signal that downstream serving should consume the certified data, not an intermediate notebook output.
+
+![Gold publication success summary](screenshots/03_Databricks_Data_Processing_and_MDM/22_Gold_Data_Publication_Success_Summary.png)
+
+![Pipeline run audit and Gold validation status](screenshots/07_Validation_and_Operations/24_Pipeline_Run_Audit_and_Gold_Validation_Status.png)
+
+*Evidence: successful Gold publication and recorded pipeline validation.*
+
+---
+
+## Step 16 — Unity Catalog governance and security
+
+Unity Catalog is the Databricks governance control plane across Bronze, Silver, MDM, Gold, quarantine, and audit data. The implemented catalog is `bfsi_mdm_dev`; its schemas include `bronze`, `silver`, `gold`, `mdm`, `quarantine`, and `audit`.
+
+### Role-based groups
+
+| Group | Purpose |
+|---|---|
+| `mdm_engineers` | Engineering and development access |
+| `mdm_stewards` | Stewardship/investigation access |
+| `mdm_analysts` | Governed analytical consumption |
+| `mdm_pii_access` | Explicit access to original PII values through the configured masking rules |
+
+Access is scoped through catalog, schema, and table permissions. Readers need the applicable namespace privileges as well as the data privilege. The analyst role is not granted broad modification rights merely because it needs to consume data.
+
+### PII tags and masking
+
+The project classifies sensitive fields such as name, phone, email, address, Tax ID and financial AUM. Three documented masking functions handle email, phone, and Tax ID:
+
+- `bfsi_mdm_dev.gold.mask_email`
+- `bfsi_mdm_dev.gold.mask_phone`
+- `bfsi_mdm_dev.gold.mask_tax_id`
+
+For readers without `mdm_pii_access`, those functions return masked values. Authorized readers receive the original values. This is different from a sensitivity tag: tags classify data, while masking changes what an unauthorized reader sees.
+
+The serving ADF managed identity has explicit membership in `mdm_pii_access` because the approved Gold-to-SQL transfer must read original governed values rather than accidentally publishing masked representations as if they were source values.
+
+### Lineage and audit boundaries
+
+Catalog Explorer lineage for `bfsi_mdm_dev.gold.master_client` was verified, and the pipeline-run audit is available in the MDM audit table. Direct SQL queries against Databricks `system.access.table_lineage`, `system.access.column_lineage`, and `system.access.audit` were permission-limited and are not claimed as verified.
+
+![Unity Catalog MDM catalog and schemas](screenshots/04_Unity_Catalog_Governance/13_Unity_Catalog_MDM_Catalog_and_Schemas.png)
+
+*Evidence: Unity Catalog MDM catalog and schema organization.*
+
+![Unity Catalog external locations for ADLS](screenshots/04_Unity_Catalog_Governance/14_Unity_Catalog_ADLS_External_Locations.png)
+
+*Evidence: configured governed storage access.*
+
+![Restricted-user PII masking verification](screenshots/04_Unity_Catalog_Governance/25_Restricted_User_PII_Masking_Verification.png)
+
+*Evidence: restricted-user masking behavior.*
+
+---
+
+## Step 17 — Azure SQL serving layer
+
+Azure SQL is the relational serving boundary for client searches, Golden Record retrieval, stewardship workflows, and dashboard aggregates. It does not rerun Spark matching or clustering.
+
+ADF pipeline `pl_bfsi_mdm_gold_to_sql` transfers the curated Gold outputs and supporting operational tables into the `mdm` schema. The recorded pipeline run completed all nine serving Copy activities successfully.
+
+### Nine-table serving model
+
+| Azure SQL table | Consumer / purpose | Recorded rows |
 |---|---|---:|
 | `mdm.master_client` | Current Golden Records | 1,080,592 |
 | `mdm.client_source_map` | Source-to-master mapping | 2,638,869 |
 | `mdm.client_record` | Canonical trusted source records | 2,638,869 |
-| `mdm.match_review` | REVIEW candidate evidence | 159,560 |
-| `mdm.stewardship_case` | Review status and decision state | 159,560 |
-| `mdm.stewardship_decision` | Persisted stewardship decisions | 2 |
+| `mdm.match_review` | REVIEW candidates and matching evidence | 159,560 |
+| `mdm.stewardship_case` | Review state and decision status | 159,560 |
+| `mdm.stewardship_decision` | Persisted decisions | 2 |
 | `mdm.pipeline_run` | Latest publication metadata | 1 |
-| `mdm.platform_health` | Health and quality metrics | 9 |
-| `mdm.entity_resolution_summary` | MATCH/REVIEW/NO_MATCH aggregates | 3 |
+| `mdm.platform_health` | Data-quality and platform metrics | 9 |
+| `mdm.entity_resolution_summary` | Aggregated decision metrics | 3 |
 
-The view `mdm.v_pending_match_review` exposes unresolved review cases. The SQL model is intended for low-latency application lookup and compact reporting, not for repeating distributed matching.
+The view `mdm.v_pending_match_review` exposes cases that have not been resolved, by combining review evidence with case status. The schema contains indexes to support common client/source lookups, review queues, and run filters.
 
-### 17. FastAPI
+![Azure SQL overview and serving security](screenshots/05_Azure_SQL_Serving/09_Azure_SQL_Server_Overview_and_Security.png)
 
-Application location: `apps/api/`
+![Azure SQL final serving validation](screenshots/05_Azure_SQL_Serving/Azure_SQL_Final_Serving_Validation.png)
 
-- `main.py`: endpoint definitions and decision workflow.
-- `db.py`: SQLAlchemy/pyodbc connection configuration with `DefaultAzureCredential`.
-- `schemas.py`: request and response schemas.
-
-The API does not perform entity resolution, fuzzy matching, clustering, survivorship or Golden Record generation. Those happen upstream in Databricks.
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| GET | `/health` | Database connectivity check using `SELECT 1` |
-| GET | `/clients/search?q=...` | Bounded master search |
-| GET | `/clients/{master_client_id}` | Retrieve complete Golden Record |
-| GET | `/clients/{master_client_id}/sources` | Retrieve mapped source records |
-| GET | `/matches/pending?limit=...` | Bounded pending-review queue |
-| GET | `/matches/{case_id}` | Review evidence, case state and source records |
-| POST | `/matches/{case_id}/approve` | Persist an approval |
-| POST | `/matches/{case_id}/reject` | Persist a rejection |
-
-Search result limits and request schemas are validated. Duplicate stewardship decisions return HTTP 409. The decision transaction updates `mdm.stewardship_case` and inserts `mdm.stewardship_decision` atomically.
-
-Interactive API documentation is served at `/docs` when the local API is running.
-
-### 18. Streamlit application
-
-Application location: `apps/streamlit/app.py`
-
-Streamlit communicates with FastAPI using HTTP requests. It has three screens:
-
-1. **Client Search:** search mastered clients by ID, name prefix, email or phone.
-2. **Golden Record:** inspect a master and its mapped trusted source records.
-3. **Match Review:** inspect match score, rule, explanation, individual scores and both records; submit a steward decision with a reason.
-
-The UI does not connect directly to SQL and does not independently run matching or mastering.
-
-### 19. Power BI dashboards
-
-The Power BI report has two intended pages:
-
-- **Platform Health:** source, contract, quarantine, Silver and master counts; accepted identity edges; candidate-pair volume; latest publication/validation status.
-- **Entity Resolution:** candidate-pair and decision counts, rates, decision distribution, average score by decision and a Top 50 review worklist.
-
-The imported model contains four tables: `mdm.platform_health`, `mdm.pipeline_run`, `mdm.match_review`, and `mdm.entity_resolution_summary`. Relationships connect `pipeline_run[run_id]` to the related run-level tables. The report uses the maximum candidate-pair total from the three-row summary rather than summing a repeated total three times.
-
-A temporary `TEMP - Validation` page was used to verify imported row counts. It is validation evidence, not a third dashboard. The editable `.pbix` is intentionally ignored by Git because it can contain imported data; the public repository contains the PDF export and screenshots.
+*Evidence: Azure SQL serving and final validation.*
 
 ---
 
-## Data Foundation and Benchmark
+## Step 18 — FastAPI serving API
 
-### FULL benchmark
+The API is in `apps/api/`:
 
-| Population | Count |
-|---|---:|
-| Banking Digital Twin individuals | 900,000 |
-| GLEIF legal entities | 94,422 |
-| **Underlying entities** | **994,422** |
+- `main.py` defines routes and the stewardship decision workflow.
+- `db.py` configures SQLAlchemy/pyodbc and Azure credential-based database access.
+- `schemas.py` defines Pydantic request/response models.
 
-The simulator generates these source records:
+The database path is:
 
-| Source | Rows |
-|---|---:|
-| Core Banking | 964,240 |
-| CRM | 660,223 |
-| KYC | 811,892 |
-| Wealth | 202,544 |
-| **Total** | **2,638,899** |
+```text
+FastAPI -> SQLAlchemy -> pyodbc -> ODBC Driver 18 -> Azure SQL
+```
 
-The ground-truth file contains 2,638,899 source-to-entity mappings—one mapping for every logical source record.
+Authentication uses `DefaultAzureCredential` and Microsoft Entra identity, rather than embedding a SQL username/password in the API code. A live `/health` request performs a database `SELECT 1` check; it therefore requires connectivity and adequate Azure SQL permissions.
 
-### Coverage across source systems
+### Implemented endpoints
 
-| Systems containing an entity | Entities |
-|---|---:|
-| 1 system | 72,720 |
-| 2 systems | 348,465 |
-| 3 systems | 475,828 |
-| 4 systems | 97,409 |
-| **Total** | **994,422** |
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/health` | Database connectivity check |
+| GET | `/clients/search` | Search Golden Records |
+| GET | `/clients/{master_client_id}` | Retrieve one master |
+| GET | `/clients/{master_client_id}/sources` | Retrieve source records for a master |
+| GET | `/matches/pending` | Retrieve bounded pending review queue |
+| GET | `/matches/{case_id}` | Retrieve case, evidence, status and source records |
+| POST | `/matches/{case_id}/approve` | Persist `APPROVE_MATCH` |
+| POST | `/matches/{case_id}/reject` | Persist `REJECT_MATCH` |
 
-### Controlled messiness and benchmark integrity
+Query limits and request fields are validated. The approval/rejection transaction checks for an earlier decision, updates the case to `RESOLVED`, persists the decision reason/steward/timestamp, and inserts an audit row. Duplicate decisions are rejected with HTTP 409. The regression tests mock the database operations; they do not issue destructive decisions to the live serving database.
 
-The synthetic source data includes name/middle-name variation, phone and date formatting variation, address differences, missing attributes, conflicting values and same-source duplicates.
+When the API is running locally, interactive documentation is available at [`http://127.0.0.1:8000/docs`](http://127.0.0.1:8000/docs).
 
-Recorded FULL simulator statistics include:
+[Open the FastAPI walkthrough PDF](application_pdfs/FastAPI/BFSI_Client_MDM_API_FastAPI.pdf).
 
-- Seed: `42`
-- Middle names added: `269,177`
-- Phone conflicts: `91,743`
-- Email conflicts: `40,115`
-- Zero-source fallbacks: `2,813`
-- Duplicate rows: Core `19,071`, CRM `13,046`, KYC `15,998`, Wealth `4,014`
+---
 
-A blank is not automatically a data-quality error. For example, DOB is not applicable to legal entities and LEI is not applicable to individuals. DQ rules must account for entity type and semantics.
+## Step 19 — Streamlit operations UI
 
-### DEV benchmark
+Streamlit is the browser-facing application in `apps/streamlit/app.py`. It calls FastAPI over HTTP and does not open a direct database connection.
 
-DEV is a smaller 22,000-entity/58,370-record workbench for local development and quick testing. Its source rows were:
+### Client Search
 
-| Source | DEV rows |
-|---|---:|
-| Core | 21,258 |
-| CRM | 14,552 |
-| KYC | 18,048 |
-| Wealth | 4,512 |
-| **Total** | **58,370** |
+Search published Golden Records by master ID, name prefix, email, or phone. Results show useful identifying and summary attributes such as name, DOB, contact information, segment and KYC status.
 
-Use DEV for iterations and FULL for acceptance-scale checks. Do not confuse DEV matching metrics with FULL results, and do not regenerate the frozen FULL benchmark for small code changes.
+[Open the Client Search walkthrough PDF](application_pdfs/Streamlit/BFSI_Client_MDM_Streamlit_Client_Search.pdf).
 
-### Data sources
+### Golden Record
 
-- [Banking Digital Twin](https://github.com/meetnishant/BankingDigitalTwin)
-- [GLEIF](https://www.gleif.org/)
+Load a record by `MASTER_CLIENT_ID`, inspect the mastered fields, and view the trusted source records mapped to that master. This lets the user understand how the enterprise identity is supported by its source-system data.
 
-See [docs/phase1_benchmark.md](docs/phase1_benchmark.md) for the complete benchmark manifest, source filters, schemas, hash metadata, simulator settings, coverage and freeze policy.
+[Open the Golden Record walkthrough PDF](application_pdfs/Streamlit/BFSI_Client_MDM_Streamlit_Golden_Record.pdf).
+
+### Match Review
+
+Select a pending case or load a specific case ID, inspect the matching rule and score evidence, compare both source records, then submit approval or rejection with a steward ID and reason.
+
+A recorded fresh API GET for a particular approved case returned `RESOLVED / APPROVE_MATCH`. The final same-case Streamlit check was still listed as pending in the handoff: loading that exact case in the UI should display `RESOLVED`. A success banner paired with a different currently selected queue case does not prove a refresh defect because the IDs differ.
+
+[Open the Match Review walkthrough PDF](application_pdfs/Streamlit/BFSI_Client_MDM_Streamlit_Match_Review.pdf).
+
+---
+
+## Step 20 — Power BI reporting
+
+The report intentionally has two business/operational pages:
+
+1. **Platform Health**
+2. **Entity Resolution**
+
+It imports only four serving tables—not all 138 million candidate pairs:
+
+- `mdm.platform_health` — 9 rows
+- `mdm.pipeline_run` — 1 row
+- `mdm.match_review` — 159,560 rows
+- `mdm.entity_resolution_summary` — 3 rows
+
+### Platform Health
+
+The dashboard displays source record volume, contract pass/quarantine, DQ quarantine, trusted Silver records, master clients, accepted identity edges, candidate pairs, latest publication status and latest validation status.
+
+![Power BI Platform Health dashboard](screenshots/06_Power_BI_Dashboards/26_Power_BI_Platform_Health_Dashboard.png)
+
+### Entity Resolution
+
+The dashboard shows candidate-pair and decision KPIs, MATCH/REVIEW rates, a decision-distribution chart, average match score by decision, and a Top 50 worklist ordered by score.
+
+![Power BI Entity Resolution dashboard](screenshots/06_Power_BI_Dashboards/27_Power_BI_Entity_Resolution_Dashboard.png)
+
+### Model design and validation
+
+The model uses `run_id` relationships from `pipeline_run` to `platform_health` and `entity_resolution_summary`. Because the total candidate-pair count is repeated across the three decision-summary rows, the measure uses the maximum rather than summing the same total three times.
+
+The `TEMP - Validation` page was a verification page used to capture row-count evidence; it is not a third dashboard. The `.pbix` is intentionally excluded from Git because it may embed imported data. The repository carries the PDF export and screenshots.
+
+[Open the Power BI report PDF](reports/powerbi/enterprise_bfsi_mdm_powerbi.pdf).
 
 ---
 
 ## Testing and GitHub Actions
 
-The repository contains tests for configuration/setup, source contracts, standardization, DQ, matching (blocking, deterministic, fuzzy and scoring), survivorship/SCD2 and API behavior.
+The repository contains tests for contract validation, standardization, DQ, blocking, deterministic matching, fuzzy scoring, survivorship/SCD2 and API behavior.
 
-### Recorded Phase 13 results
+### Recorded local checks
 
-```text
-python -m pytest tests/test_api.py -q
-8 passed
-
-python -m pytest -q
-55 passed
-
+```powershell
 python -m compileall -q apps src tests
-passed
+python -m pytest tests/test_api.py -q
+python -m pytest -q
 ```
 
-The local TestClient emitted a Starlette deprecation warning related to its HTTP client integration. The suite still passed. The API regression tests mock database operations; they do not require submitting real approvals or rejections to a live SQL database.
+Recorded results:
 
-### CI workflow
+```text
+API regression tests: 8 passed
+Full pytest suite:    55 passed, 1 warning
+Python compilation:   passed
+```
 
-Workflow: `.github/workflows/ci.yml`
+The warning was a non-blocking Starlette deprecation warning related to the installed TestClient HTTP client integration. The tests passed.
 
-It runs on pushes to `main`, pull requests targeting `main`, and manual workflow dispatch. The Ubuntu runner sets up Python 3.11, installs dependencies and ODBC build requirements, compiles the Python code and runs pytest. The job has read-only repository content permissions and does not connect to Azure.
+API test cases cover request/query validation, response structure, approval persistence operations, duplicate-decision HTTP 409, missing-case behavior, and returned resolved status. Database operations are mocked to avoid live Azure dependencies and live stewardship mutations.
 
-[View GitHub Actions runs](https://github.com/SnehRex1/enterprise-bfsi-client-mdm-platform/actions)
+### GitHub Actions CI
 
-**CI status:** GitHub Actions passed on README commit `ca6f8be`. The workflow compiles the Python code and runs pytest; it does not deploy to Azure.
+Workflow file: `.github/workflows/ci.yml`
+
+- Triggers on pushes to `main`, pull requests to `main`, and manual workflow dispatch.
+- Runs on `ubuntu-latest` with Python 3.11.
+- Installs project dependencies and ODBC system dependencies.
+- Runs `compileall` and pytest.
+- Uses read-only repository content permissions.
+- Does **not** deploy to Azure.
+![Phase 13 API and full test-suite evidence](screenshots/08_CI_and_Acceptance/01_API_and_Full_Test_Suite_Passed.png)
+
+![Phase 13 GitHub Actions CI evidence](screenshots/08_CI_and_Acceptance/02_GitHub_Actions_CI_Passed.png)
+
+[View GitHub Actions runs](https://github.com/SnehRex1/enterprise-bfsi-client-mdm-platform/actions).
 
 ---
 
-## Repository Structure
+## Repository layout
 
-The structure below highlights the important tracked project areas. Generated datasets are excluded from Git and therefore do not appear in this tree.
+This is a focused tree of the important tracked project areas. Generated benchmark data and the editable PBIX are excluded from the public repository.
 
 ```text
 enterprise-bfsi-client-mdm-platform/
@@ -589,9 +1034,13 @@ enterprise-bfsi-client-mdm-platform/
 │   ├── config.yaml
 │   └── simulator.yaml
 ├── docs/
+│   ├── DATA_DICTIONARY.md
 │   ├── PHASE3_ENTITY_RESOLUTION.md
 │   ├── PHASE5_SURVIVORSHIP_GOLDEN_RECORD.md
+│   ├── data-model.md
 │   ├── data_contracts.md
+│   ├── entity-resolution.md
+│   ├── governance.md
 │   ├── phase1_benchmark.md
 │   └── phase2_data_quality.md
 ├── notebooks/
@@ -642,19 +1091,21 @@ enterprise-bfsi-client-mdm-platform/
 └── requirements.txt
 ```
 
+**Note:** the folders within `notebooks/databricks/MDM_DATAPLATFORM/` organize Databricks notebook artifacts in the project/workspace layout. Check the tracked tree for the exact serialized notebook filenames.
+
 ---
 
-## Local Setup and Running Applications
+## Run the local tests and applications
 
 ### Prerequisites
 
 - Git
-- Python 3.11 (the CI version)
-- ODBC Driver 18 for SQL Server for a database-backed API session
-- Azure CLI and an Azure identity authorized to access the target Azure SQL database for live serving
-- Microsoft Azure resources already provisioned and configured for the cloud-backed path
+- Python 3.11 (the CI interpreter version)
+- Azure CLI and an authorized Microsoft Entra identity for live Azure SQL access
+- Microsoft ODBC Driver 18 for SQL Server for database-backed API use
+- Azure resources already provisioned/configured for live serving
 
-The pytest API suite mocks database operations, so running tests does not require live Azure access.
+The mocked API tests do not need access to Azure SQL.
 
 ### 1. Clone the repository
 
@@ -663,9 +1114,7 @@ git clone https://github.com/SnehRex1/enterprise-bfsi-client-mdm-platform.git
 cd enterprise-bfsi-client-mdm-platform
 ```
 
-### 2. Create the Python virtual environment
-
-Windows PowerShell:
+### 2. Create a virtual environment
 
 ```powershell
 py -3.11 -m venv .venv
@@ -674,9 +1123,9 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-If PowerShell blocks virtual-environment activation under your local execution policy, use the environment's Python executable directly or follow your organization's policy instead of weakening system-wide security settings.
+If PowerShell blocks activation under your local execution policy, follow your organization's policy or invoke the virtual environment's Python executable directly rather than changing system-wide security settings.
 
-### 3. Run tests
+### 3. Run the test suite
 
 ```powershell
 python -m compileall -q apps src tests
@@ -684,146 +1133,91 @@ python -m pytest tests/test_api.py -q
 python -m pytest -q
 ```
 
-### 4. Configure Azure SQL access for FastAPI
+Expected recorded results for the validated checkpoint are 8 API tests and 55 tests overall. New repository changes can alter those results, so treat the commands—not the historical numbers—as the current test.
 
-The database connection uses `DefaultAzureCredential` with Microsoft Entra authentication and requires the correct Azure SQL permissions. Set the target server and database for your environment. Do not put credentials in source control.
+### 4. Configure and start FastAPI
+
+The current database code uses `DefaultAzureCredential` and SQLAlchemy/pyodbc. Set the SQL server/database for your own authorized environment and sign in through Azure CLI. Do not place credentials in source control.
 
 ```powershell
 $env:MDM_SQL_SERVER = "<your-server>.database.windows.net"
 $env:MDM_SQL_DATABASE = "<your-database>"
 az login
-```
-
-Then start the API:
-
-```powershell
 python -m uvicorn apps.api.main:app --reload
 ```
 
-Open [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) for the interactive API documentation. The API's `/health` endpoint checks the live database with `SELECT 1`; therefore a healthy response requires working Azure SQL connectivity and permissions.
+Open:
+
+- API: `http://127.0.0.1:8000`
+- Swagger UI: `http://127.0.0.1:8000/docs`
+
+A successful `/health` response requires that the API can actually connect to Azure SQL using the configured identity and permissions.
 
 ### 5. Start Streamlit
 
-Open a separate terminal with the same Python environment activated and configure the API URL:
+In a second terminal using the same virtual environment:
 
 ```powershell
 $env:MDM_API_URL = "http://127.0.0.1:8000"
 python -m streamlit run apps/streamlit/app.py
 ```
 
-Open the local URL shown by Streamlit. The API must already be running for database-backed application actions.
+Open the local URL printed by Streamlit. Database-backed search and review actions require FastAPI to be running and configured for the serving database.
 
 ### 6. Power BI
 
-The repository contains a PDF export for review. The editable `enterprise_bfsi_mdm_powerbi.pbix` is intentionally excluded from Git because it can contain imported data. To edit or refresh the report, use the locally retained PBIX and the appropriate authorized SQL connection.
+The tracked repository includes the PDF report and supporting screenshots. The editable `.pbix` is deliberately excluded by `.gitignore` because imported data may be embedded in the file. Use the authorized local PBIX and SQL connection to refresh or edit the report.
 
 ---
 
-## Documentation and Evidence
+## Documentation and evidence index
 
-### Application walkthrough PDFs
+### Technical documents
 
-- [FastAPI endpoint walkthrough](application_pdfs/FastAPI/BFSI_Client_MDM_API_FastAPI.pdf)
-- [Streamlit — Client Search](application_pdfs/Streamlit/BFSI_Client_MDM_Streamlit_Client_Search.pdf)
-- [Streamlit — Golden Record](application_pdfs/Streamlit/BFSI_Client_MDM_Streamlit_Golden_Record.pdf)
-- [Streamlit — Match Review](application_pdfs/Streamlit/BFSI_Client_MDM_Streamlit_Match_Review.pdf)
-- [Power BI report PDF](reports/powerbi/enterprise_bfsi_mdm_powerbi.pdf)
+- [Phase 1 benchmark manifest](docs/phase1_benchmark.md) — source populations, filters, schemas, deterministic seed, simulator stats and freeze policy.
+- [Phase 2 contracts, standardization and DQ](docs/phase2_data_quality.md) — contracts, canonical mappings, quarantine, and validation.
+- [Phase 3 entity resolution](docs/PHASE3_ENTITY_RESOLUTION.md) — matching strategy and DEV evaluation.
+- [Phase 5 survivorship, Golden Record, provenance and SCD2](docs/PHASE5_SURVIVORSHIP_GOLDEN_RECORD.md).
+- [Data contracts](docs/data_contracts.md).
 
-### Selected visual evidence
+The README above consolidates the architecture, data model, results, application interfaces, governance and evidence. Some other tracked docs may be scaffolded placeholders; they should not be relied on for substantive detail unless populated.
 
-#### Azure infrastructure and storage
+### Full evidence folders
 
-![Azure resource group and provisioned MDM resources](screenshots/01_Azure_Infrastructure_and_Storage/01_Azure_Resource_Group_Provisioned_MDM_Resources.png)
-
-#### Azure Data Factory ingestion
-
-![ADF metadata-driven source ingestion success](screenshots/02_Azure_Data_Factory/11_ADF_Metadata_Driven_Source_Ingestion_Success.png)
-
-#### Databricks MDM processing
-
-![Databricks entity resolution decisions and matching rules](screenshots/03_Databricks_Data_Processing_and_MDM/18_Databricks_Entity_Resolution_Decisions_and_Matching_Rules.png)
-
-#### Unity Catalog governance
-
-![Unity Catalog MDM catalog and schemas](screenshots/04_Unity_Catalog_Governance/13_Unity_Catalog_MDM_Catalog_and_Schemas.png)
-
-#### Azure SQL serving
-
-![Azure SQL final serving validation](screenshots/05_Azure_SQL_Serving/Azure_SQL_Final_Serving_Validation.png)
-
-#### Power BI — Platform Health
-
-![Power BI Platform Health dashboard](screenshots/06_Power_BI_Dashboards/26_Power_BI_Platform_Health_Dashboard.png)
-
-#### Power BI — Entity Resolution
-
-![Power BI Entity Resolution dashboard](screenshots/06_Power_BI_Dashboards/27_Power_BI_Entity_Resolution_Dashboard.png)
-
-#### Gold publication and validation
-
-![Pipeline run audit and Gold validation status](screenshots/07_Validation_and_Operations/24_Pipeline_Run_Audit_and_Gold_Validation_Status.png)
-
-#### Phase 13 regression tests
-
-![API and full test suite passed](screenshots/08_CI_and_Acceptance/01_API_and_Full_Test_Suite_Passed.png)
-
-#### Phase 13 GitHub Actions
-
-![GitHub Actions CI passed](screenshots/08_CI_and_Acceptance/02_GitHub_Actions_CI_Passed.png)
-
-The repository also contains supporting screenshots for storage, managed identities, ADF linked services, notebook organization, contract/DQ validation, stewardship, survivorship, provenance/SCD2, Gold publication, SQL validation and Power BI row-count verification.
-
-### Technical documentation
-
-- [Phase 1 benchmark manifest](docs/phase1_benchmark.md)
-- [Phase 2 data quality](docs/phase2_data_quality.md)
-- [Phase 3 entity resolution](docs/PHASE3_ENTITY_RESOLUTION.md)
-- [Phase 5 survivorship, Golden Record and SCD2](docs/PHASE5_SURVIVORSHIP_GOLDEN_RECORD.md)
-- [Data contracts](docs/data_contracts.md)
-
-The README contains the consolidated architecture, serving model, governance
-overview, data dictionary highlights, setup instructions and verified runtime
-results. A few scaffolded documentation files in `docs/` are currently empty
-placeholders and are intentionally not linked as reference material.
+- [Azure infrastructure and storage](screenshots/01_Azure_Infrastructure_and_Storage/)
+- [Azure Data Factory](screenshots/02_Azure_Data_Factory/)
+- [Databricks processing and MDM](screenshots/03_Databricks_Data_Processing_and_MDM/)
+- [Unity Catalog governance](screenshots/04_Unity_Catalog_Governance/)
+- [Azure SQL serving](screenshots/05_Azure_SQL_Serving/)
+- [Power BI dashboards](screenshots/06_Power_BI_Dashboards/)
+- [Validation and operations](screenshots/07_Validation_and_Operations/)
+- [Phase 13 CI and acceptance](screenshots/08_CI_and_Acceptance/)
 
 ---
 
-## Known Limitations and Honest Reporting
+## Known limitations and claims boundary
 
-- **Synthetic data:** The customer data is synthetic. The system is not connected to actual bank client records.
-- **FULL accuracy metrics:** The available precision/recall/F1 figures belong to the local DEV benchmark. Do not present them as FULL cloud metrics without a full hidden-ground-truth evaluation of the FULL matching configuration.
-- **Stewardship volume:** 159,560 REVIEW cases were recorded, but only two persisted decisions were evidenced in the recorded Azure SQL checkpoint. The queue size is not a count of manually reviewed cases.
-- **SCD2:** The initial FULL load has 14,047,696 current history rows and zero expired rows. The existence of incremental change-handling logic does not by itself prove a later changed-value expiration run.
-- **Stable IDs across runs:** The registry-reuse logic exists, but cross-run master-ID stability has not been empirically demonstrated by the initial FULL run.
-- **Unity Catalog platform audit:** Catalog Explorer lineage and pipeline audit are verified to the recorded scope. Direct queries against `system.access` lineage/audit tables are not claimed as verified because access was permission-limited.
-- **Deployment:** GitHub Actions currently performs compilation and tests. It does not deploy services to Azure.
-- **Final report artifact:** The published PDF and screenshots document the two intended dashboards. The editable PBIX remains local/ignored and may contain imported data.
-- **Production hardening:** Authentication, secrets, resource sizing, operational monitoring, release control, network restrictions and data-protection obligations would need a separate production readiness review before any real customer-data use.
-
----
-
-## Security and Cost Considerations
-
-- Do not commit `.env`, passwords, access tokens, service-principal secrets, SQL connection credentials or private source datasets.
-- Use managed identities and Microsoft Entra authentication where configured, with only the permissions needed for each service.
-- Keep the editable Power BI `.pbix` out of the public repository unless its contents have been explicitly reviewed and approved for publication.
-- Review screenshots and PDFs for sensitive values before publication.
-- Use DEV for routine iterations and reserve FULL processing for planned acceptance/scale checks.
-- Shut down or terminate compute when it is no longer required, following the project's cost-control process.
-- Do not run `terraform destroy` or delete Azure resources until required evidence/results have been backed up and the cleanup scope has been explicitly reviewed.
+- **Synthetic benchmark only:** no actual bank customer data is used.
+- **FULL accuracy:** DEV Precision/Recall/F1 must not be reported as FULL cloud accuracy. FULL decision counts are known; a FULL hidden-ground-truth accuracy evaluation is not verified.
+- **Stewardship:** the recorded checkpoint has two persisted review decisions, not 159,560 manually reviewed decisions.
+- **SCD2:** the initial FULL load has 14,047,696 current rows and zero expired rows. Actual expiry after a changed-value subsequent run is not verified.
+- **Master-ID stability:** registry reuse is implemented as a design, but cross-run stability was not empirically demonstrated by the initial FULL run.
+- **Unity Catalog platform audit:** Catalog Explorer lineage and the pipeline audit were verified; direct `system.access` SQL queries were permission-limited.
+- **CI versus CD:** GitHub Actions compiles and tests the code; it does not deploy to Azure.
+- **Power BI artifact:** PDF and screenshots are tracked; the editable `.pbix` remains excluded from Git because it may contain imported data.
+- **Production readiness:** real-data onboarding would require separate validation of security controls, service availability, observability, release process, networking, data protection, and regulatory obligations.
 
 ---
 
-## Future Acceptance Checklist
+## Security and cost controls
 
-The architecture and most implementation phases are complete to the verified scope. The remaining project-polish tasks tracked in the Phase 13 handoff are:
-
-- Verify the resolved case ID in Streamlit displays the same `RESOLVED` status returned by a fresh API GET.
-- Reopen the saved local Power BI PBIX and confirm only Platform Health and Entity Resolution are intended visible pages; ensure the published PDF corresponds to the final report.
-- Create/finish the concise demo runbook using existing evidence.
-- Complete the final security, repository hygiene and Azure cost review.
-
-These items are acceptance/packaging checks and do not imply that the verified FULL data-processing run needs to be regenerated.
+- Never commit `.env`, passwords, access tokens, service-principal secrets, connection strings with credentials, private source data, or hidden ground truth.
+- Use Microsoft Entra authentication and managed identities where configured; grant only the permissions required for the identity's role.
+- Keep the editable PBIX outside the public repository unless its embedded data has been deliberately reviewed and cleared for publication.
+- Review screenshots and PDFs for account emails, tokens, private resource details, or other sensitive material before publishing.
+- Use DEV for routine iterations and plan FULL processing as an acceptance-scale operation.
+- Stop or terminate compute when it is not needed.
+- Back up evidence and required outputs before deleting resources. Do not execute `terraform destroy` or delete Azure resources until the cleanup scope has been reviewed explicitly.
 
 ---
 
@@ -835,7 +1229,7 @@ These items are acceptance/packaging checks and do not imply that the verified F
 ---
 
 **Project:** Enterprise BFSI Client MDM & Data Governance Platform  
-**Architecture:** Frozen V4  
-**Primary path:** Azure Data Factory → ADLS Gen2 → Databricks/PySpark + Delta Lake → Unity Catalog governance → Azure SQL → FastAPI / Streamlit / Power BI  
+**Architecture:** Frozen V4 reference design  
+**Data path:** Azure Data Factory → ADLS Gen2 → Databricks/PySpark + Delta Lake → Unity Catalog governance → Azure SQL → FastAPI / Streamlit / Power BI  
 **Matching:** Deterministic rules + fuzzy/explainable scoring; no ML/LLM matching  
-**Evaluation:** Hidden ground truth is reserved for benchmark evaluation and is not used as a matching input  
+**Ground truth:** Isolated benchmark truth used for evaluation only, never as a matching input
