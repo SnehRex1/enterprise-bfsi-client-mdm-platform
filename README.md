@@ -19,6 +19,7 @@ An end-to-end Azure-based **Master Data Management (MDM)** reference implementat
 1. [Why this project exists](#1-why-this-project-exists)
 2. [Architecture](#2-architecture)
 3. [Verified results at a glance](#3-verified-results-at-a-glance)
+   - [FULL benchmark accuracy evaluation](#full-benchmark-accuracy-evaluation-executed)
 4. [Technology stack and responsibility boundaries](#4-technology-stack-and-responsibility-boundaries)
 5. [Benchmark data foundation](#5-benchmark-data-foundation)
 6. [Step 1 — Source simulation and benchmark integrity](#step-1--source-simulation-and-benchmark-integrity)
@@ -148,7 +149,7 @@ Banking Digital Twin + GLEIF Golden Copy
 
 ## 3. Verified results at a glance
 
-The values below are from the recorded FULL cloud run and serving checkpoint. “FULL” means the official large benchmark; it does not mean that every metric below has been evaluated against full ground truth.
+The values below combine recorded FULL cloud pipeline/serving checkpoints with a separate evaluation-only Databricks run against the frozen benchmark's hidden ground truth. Accuracy figures are pairwise identity-resolution metrics; they do not measure factual correctness of Golden Record attributes or production uptime.
 
 ### Source records and quality reconciliation
 
@@ -201,6 +202,57 @@ At the recorded SQL checkpoint, there were two persisted stewardship decisions: 
 
 These shares describe the **candidate-pair decision distribution**. They are not Precision, Recall, F1, or an independently measured accuracy rate.
 
+### FULL benchmark accuracy evaluation (executed)
+
+The evaluation-only notebook compares the saved FULL outputs with the hidden `entity_key` mapping. It joins on `(source_system, source_id)` after matching has completed and does not place ground truth in operational processing tables.
+
+**Evaluation population**
+
+| Measure | Recorded result |
+|---|---:|
+| Ground-truth mappings loaded | 2,638,899 |
+| Trusted Silver records evaluated | 2,638,869 |
+| Ground-truth records outside trusted Silver | 30 |
+| Hidden entities represented in trusted Silver | 994,420 |
+| True record pairs in evaluation denominator | 2,508,438 |
+| Candidate pair rows | 138,074,372 |
+| True pairs captured by blocking | 2,495,317 |
+| True pairs missed by blocking | 13,121 |
+
+**Direct pairwise automatic-match metrics**
+
+| Metric | Recorded FULL result |
+|---|---:|
+| True positives (`MATCH`, same entity) | 2,241,799 |
+| False positives (`MATCH`, different entities) | 7,278 |
+| False negatives (true pairs not automatically matched) | 266,639 |
+| Precision | **99.6764%** |
+| End-to-end recall | **89.3703%** |
+| F1-score | **94.2424%** |
+| True pairs marked `REVIEW` | 158,069 |
+| True pairs marked `NO_MATCH` | 95,449 |
+
+False negatives include 13,121 true pairs missed by blocking and 253,518 true candidate pairs not automatically matched. REVIEW cases are unresolved; they are not counted as automatic true positives.
+
+**Final Golden Record cluster metrics**
+
+| Metric | Recorded FULL result |
+|---|---:|
+| Master IDs in source map | 1,080,592 |
+| Predicted same-master record pairs | 2,361,147 |
+| Correct same-entity, same-master pairs | 2,352,704 |
+| Incorrect same-master pairs (over-merge pairs) | 8,443 |
+| Same-entity pairs split across masters | 155,734 |
+| Cluster pairwise precision | **99.6424%** |
+| Cluster pairwise recall | **93.7916%** |
+| Cluster pairwise F1 | **96.6285%** |
+| Master clusters containing more than one true entity | 1,218 |
+| True entities split across multiple masters | 82,484 |
+
+These are **pairwise identity-resolution metrics**, not conventional accuracy across all possible positive and negative pairs. The cluster results measure relationships implied by final `MASTER_CLIENT_ID` assignments, including transitive links from connected components. They show strong precision alongside measurable under-merging and some over-merging.
+
+**Reproduction:** [FULL Benchmark Accuracy Evaluation notebook](notebooks/databricks/MDM_DATAPLATFORM/06_evaluation/FULL_BENCHMARK_ACCURACY_EVALUATION.ipynb). The hidden ground-truth file is not committed. Set the `GROUND_TRUTH_PATH` widget to a restricted copy of the matching FULL benchmark's ground truth and run against the same Databricks table checkpoint.
+
 ### Quality and delivery checkpoint
 
 - All nine ADF Gold-to-SQL Copy activities succeeded in the recorded serving run.
@@ -231,6 +283,7 @@ These figures document the project's recorded verification checkpoints. They do 
 | Identity / secrets | Microsoft Entra ID, managed identities, Azure Key Vault | Authentication and protected configuration |
 | Infrastructure definitions | Terraform | Infrastructure-as-code artifacts |
 | Tests and CI | pytest, GitHub Actions | Regression tests, compilation, and automated checks |
+| FULL accuracy evaluation | Databricks evaluation notebook | Ground-truth-based pairwise and cluster metrics, isolated from matching inputs |
 | Matching | Deterministic rules + fuzzy/explainable scoring | Explainable identity decisions |
 
 The design intentionally excludes additional systems such as Kafka, Event Hubs, Kubernetes, Airflow, AWS, Snowflake, ML/LLM-based matching, a fifth source system, and a third Power BI dashboard. These are outside the frozen project scope.
@@ -572,16 +625,16 @@ The result retains per-attribute scores, aggregate `match_score`, `matching_rule
 
 ### Accuracy metrics: DEV versus FULL
 
-The local DEV configuration previously measured:
+The DEV and FULL results are measured on different benchmark sizes and implementations, so keep them clearly labelled.
 
-| DEV metric | Result |
-|---|---:|
-| Precision | 99.9926% |
-| Recall | 97.4423% |
-| F1 | 98.7010% |
-| Blocking recall | 99.4769% |
+| Metric | DEV | FULL |
+|---|---:|---:|
+| Precision | 99.9926% | 99.6764% |
+| End-to-end recall | 97.4423% | 89.3703% |
+| F1 | 98.7010% | 94.2424% |
+| Blocking recall | 99.4769% | 99.4769% |
 
-These are **DEV benchmark results only**. A full Precision/Recall/F1 claim for the FULL cloud configuration requires evaluating that configuration against the isolated FULL ground truth. The candidate distribution by itself does not establish the factual accuracy of the decisions.
+The FULL values come from the executed evaluation-only notebook, which joins the frozen hidden ground truth to the saved FULL matching outputs. The FULL direct recall denominator includes true pairs missed by blocking and true pairs left in `REVIEW` or `NO_MATCH`. The final Golden Record clusters have separate pairwise metrics: **99.6424% precision, 93.7916% recall, and 96.6285% F1**. Do not present any of these as factual accuracy of Golden Record attributes.
 
 ---
 
@@ -1050,7 +1103,9 @@ enterprise-bfsi-client-mdm-platform/
 │           ├── 02_silver/
 │           ├── 03_mdm/
 │           ├── 04_gold/
-│           └── 05_governance/
+│           ├── 05_governance/
+│           └── 06_evaluation/
+│               └── FULL_BENCHMARK_ACCURACY_EVALUATION.ipynb
 ├── reports/
 │   └── powerbi/
 │       └── enterprise_bfsi_mdm_powerbi.pdf
@@ -1178,6 +1233,7 @@ The tracked repository includes the PDF report and supporting screenshots. The e
 - [Phase 2 contracts, standardization and DQ](docs/phase2_data_quality.md) — contracts, canonical mappings, quarantine, and validation.
 - [Phase 3 entity resolution](docs/PHASE3_ENTITY_RESOLUTION.md) — matching strategy and DEV evaluation.
 - [Phase 5 survivorship, Golden Record, provenance and SCD2](docs/PHASE5_SURVIVORSHIP_GOLDEN_RECORD.md).
+- [FULL benchmark accuracy evaluation notebook](notebooks/databricks/MDM_DATAPLATFORM/06_evaluation/FULL_BENCHMARK_ACCURACY_EVALUATION.ipynb) — FULL ground-truth pairwise and final-cluster metrics; ground-truth data remains external and restricted.
 - [Data contracts](docs/data_contracts.md).
 
 The README above consolidates the architecture, data model, results, application interfaces, governance and evidence. Some other tracked docs may be scaffolded placeholders; they should not be relied on for substantive detail unless populated.
@@ -1198,7 +1254,7 @@ The README above consolidates the architecture, data model, results, application
 ## Known limitations and claims boundary
 
 - **Synthetic benchmark only:** no actual bank customer data is used.
-- **FULL accuracy:** DEV Precision/Recall/F1 must not be reported as FULL cloud accuracy. FULL decision counts are known; a FULL hidden-ground-truth accuracy evaluation is not verified.
+- **FULL accuracy:** Hidden-ground-truth evaluation is recorded in the evaluation notebook. FULL direct pairwise precision/recall/F1 are 99.6764% / 89.3703% / 94.2424%; final-cluster pairwise precision/recall/F1 are 99.6424% / 93.7916% / 96.6285%. These metrics apply to synthetic identity pairs, not attribute factuality or production performance.
 - **Stewardship:** the recorded checkpoint has two persisted review decisions, not 159,560 manually reviewed decisions.
 - **SCD2:** the initial FULL load has 14,047,696 current rows and zero expired rows. Actual expiry after a changed-value subsequent run is not verified.
 - **Master-ID stability:** registry reuse is implemented as a design, but cross-run stability was not empirically demonstrated by the initial FULL run.
